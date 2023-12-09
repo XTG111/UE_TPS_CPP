@@ -96,6 +96,8 @@ protected:
 	void OnCreateSessionComplete(FName SessionName,bool bWasSuccessful);
 	//是否寻找到session
 	void OnFindSessionComplete(bool bWasSuccessful);
+	//寻找到Session后的一个回调函数Join
+	void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
 
 private:
 
@@ -105,6 +107,9 @@ private:
 
 	//寻找存在会话的委托
 	FOnFindSessionsCompleteDelegate FindSessionCompleteDelegate;
+
+	//当客户端寻找到Session,利用委托事件调用Join事件
+	FOnJoinSessionCompleteDelegate JoinSessionCompleteDelegate;
 
 	//为了获取搜索到的session结果，所以要将其变为全局变量
 	TSharedPtr<FOnlineSessionSearch> SessionSearch;

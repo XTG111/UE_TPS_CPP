@@ -18,7 +18,8 @@
 
 AMenuSystemCharacter::AMenuSystemCharacter() :
 	CreateSessionCompleteDelegate(FOnCreateSessionCompleteDelegate::CreateUObject(this, &AMenuSystemCharacter::OnCreateSessionComplete)),
-	FindSessionCompleteDelegate(FOnFindSessionsCompleteDelegate::CreateUObject(this, &AMenuSystemCharacter::OnFindSessionComplete))
+	FindSessionCompleteDelegate(FOnFindSessionsCompleteDelegate::CreateUObject(this, &AMenuSystemCharacter::OnFindSessionComplete)),
+	JoinSessionCompleteDelegate(FOnJoinSessionCompleteDelegate::CreateUObject(this, &AMenuSystemCharacter::OnJoinSessionComplete))
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
@@ -127,6 +128,9 @@ void AMenuSystemCharacter::CreateGameSession()
 	SessionSettings->bShouldAdvertise = true;
 	SessionSettings->bUsesPresence = true;
 
+	//设置一些键值对，使得我们可以区分其他的session连接
+	SessionSettings->Set(FName("Match"), FString("ClientJCS"), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+
 	//用于创建session的第一个参数，IP地址
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	OnlineSessionInterface->CreateSession(*LocalPlayer->GetPreferredUniqueNetId(), NAME_GameSession, *SessionSettings);
@@ -165,6 +169,13 @@ void AMenuSystemCharacter::OnCreateSessionComplete(FName SessionName, bool bWasS
 		{
 			GEngine->AddOnScreenDebugMessage(-1, 15., FColor::Blue, FString::Printf(TEXT("Created Session: %s"),*SessionName.ToString()));
 		}
+
+		//跳转到大厅
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			World->ServerTravel(FString("/Game/ThirdPersonCPP/Maps/Lobby?listen"));
+		}
 	}
 	else
 	{
@@ -176,14 +187,67 @@ void AMenuSystemCharacter::OnCreateSessionComplete(FName SessionName, bool bWasS
 }
 
 //是否成功寻找到Session
+//通过检测键值对，连接到我们自己的session中
 void AMenuSystemCharacter::OnFindSessionComplete(bool bWasSuccessful)
 {
+	if(!OnlineSessionInterface.IsValid())
+	{
+		return;
+	}
+
 	for (auto Result : SessionSearch->SearchResults)
 	{
 		FString Id = Result.GetSessionIdStr();
 		FString User = Result.Session.OwningUserName;
+
+		FString MatchType;
+		Result.Session.SessionSettings.Get(FName("Match"), MatchType);
+
 		if (GEngine) {
 			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Cyan, FString::Printf(TEXT("ID:%s, User:%s"), *Id, *User));
+		}
+
+		if (MatchType == FString("ClientJCS"))
+		{
+			if (GEngine) {
+				GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Cyan, FString::Printf(TEXT("Client Session MatchType:%s"), *MatchType));
+			}
+			
+			//添加委托事件
+			OnlineSessionInterface->AddOnJoinSessionCompleteDelegate_Handle(JoinSessionCompleteDelegate);
+
+			//客户端的IP
+			const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
+
+			//给JoinSession添加客户端信息，session信息,session的名字和服务器信息
+			OnlineSessionInterface->JoinSession(*LocalPlayer->GetPreferredUniqueNetId(), NAME_GameSession, Result);
+		}
+	}
+}
+
+//客户端连接到服务器创建的session中
+void AMenuSystemCharacter::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
+{
+	if (!OnlineSessionInterface.IsValid())
+	{
+		return;
+	}
+
+	//创建一个存储地址的变量，GetResolvedConnectString函数会把地址值传给它
+	//当执行了join的委托，调用这个OnJoin函数，就会执行GetResolvedConnectString函数从而获取addr
+	//GetResolvedConnectString函数返回的是一个Bool值
+	FString Addr;
+	if (OnlineSessionInterface->GetResolvedConnectString(NAME_GameSession, Addr))
+	{
+		if (GEngine) {
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString::Printf(TEXT("Client String:%s"), *Addr));
+		}
+
+		//客户端利用ClientTrave进行地图转换
+		APlayerController* PlayerController = GetGameInstance()->GetFirstLocalPlayerController();
+		if (PlayerController)
+		{
+			PlayerController->ClientTravel(Addr, ETravelType::TRAVEL_Absolute);
 		}
 	}
 }
