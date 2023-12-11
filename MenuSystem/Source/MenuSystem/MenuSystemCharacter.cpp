@@ -129,7 +129,7 @@ void AMenuSystemCharacter::CreateGameSession()
 	SessionSettings->bUsesPresence = true;
 
 	//设置一些键值对，使得我们可以区分其他的session连接
-	SessionSettings->Set(FName("Match"), FString("ClientJCS"), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	SessionSettings->Set(FName("MatchTypeJZC"), FString("ClientJCS"), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
 
 	//用于创建session的第一个参数，IP地址
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
@@ -149,7 +149,7 @@ void AMenuSystemCharacter::JoinGameSession()
 	//设置搜索返回结果
 	SessionSearch = MakeShareable(new FOnlineSessionSearch());
 	//用来确定搜索多少次结果，因为是公用ID端口，所以要把搜索数变大一些，避免不能搜到
-	SessionSearch->MaxSearchResults = 10000;
+	SessionSearch->MaxSearchResults = 500000;
 	SessionSearch->bIsLanQuery = false;
 	SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
 
@@ -201,7 +201,7 @@ void AMenuSystemCharacter::OnFindSessionComplete(bool bWasSuccessful)
 		FString User = Result.Session.OwningUserName;
 
 		FString MatchType;
-		Result.Session.SessionSettings.Get(FName("Match"), MatchType);
+		Result.Session.SessionSettings.Get(FName("MatchTypeJZC"), MatchType);
 
 		if (GEngine) {
 			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Cyan, FString::Printf(TEXT("ID:%s, User:%s"), *Id, *User));

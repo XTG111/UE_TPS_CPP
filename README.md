@@ -274,3 +274,16 @@ FString Addr;
 		}
 	}
 ```
+
+# 自己插件的构建
+首先利用Plugin中的Create Plugin创建一个空白的Plugin
+
+通过包含OnlineSubSystem等来实现自己的OnlineSubSystem插件，为了能够使得我们的插件在整个游戏过程中能够使用，我们需要将其和游戏示例类绑定在一起，UE为我们提供了SubSystem的实例类，可以通过SubSystem来获取游戏实例的SubSystem，在我们构建的插件文件夹中添加class文件
+[Program Subsystem](https://docs.unrealengine.com/4.27/en-US/ProgrammingAndScripting/Subsystems/)
+
+1. 新建一个gamesubsystem的类MultiplayerSubsystem，这个类中将主要实现我们的OnlineSubsystem代码
+主要工作就是创建了委托和回调函数。
+首先对于一个OnlineSubsystem插件来说，第一点就是需要和一个服务器产生连接，我们可以通过OnlineSubsystem实例化一个对象来获取，获取到连接后，我们需要利用Session接口来维护产生的Session，所以需要实例化一个OnlineSessionPtr的对象，可以从OnlineSubsystem中直接获得。
+对于一个Session接口(Session)其需要具备以下功能：Create,Find,Join,Delete,Start
+所以在gamesubsystem类中，我们需要定义对应的5个委托和其回调函数，为了删除和开启一个委托，我们还需要增加5个对于的Handle用来维护委托
+
