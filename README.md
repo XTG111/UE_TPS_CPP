@@ -281,9 +281,72 @@ FString Addr;
 通过包含OnlineSubSystem等来实现自己的OnlineSubSystem插件，为了能够使得我们的插件在整个游戏过程中能够使用，我们需要将其和游戏示例类绑定在一起，UE为我们提供了SubSystem的实例类，可以通过SubSystem来获取游戏实例的SubSystem，在我们构建的插件文件夹中添加class文件
 [Program Subsystem](https://docs.unrealengine.com/4.27/en-US/ProgrammingAndScripting/Subsystems/)
 
-1. 新建一个gamesubsystem的类MultiplayerSubsystem，这个类中将主要实现我们的OnlineSubsystem代码
+1. 新建一个gamesubsystem的类MultiplayerSessionSubsystem，这个类中将主要实现我们的OnlineSubsystem代码
 主要工作就是创建了委托和回调函数。
 首先对于一个OnlineSubsystem插件来说，第一点就是需要和一个服务器产生连接，我们可以通过OnlineSubsystem实例化一个对象来获取，获取到连接后，我们需要利用Session接口来维护产生的Session，所以需要实例化一个OnlineSessionPtr的对象，可以从OnlineSubsystem中直接获得。
 对于一个Session接口(Session)其需要具备以下功能：Create,Find,Join,Delete,Start
 所以在gamesubsystem类中，我们需要定义对应的5个委托和其回调函数，为了删除和开启一个委托，我们还需要增加5个对于的Handle用来维护委托
+gamesubsystem类是一个基于GameInstance的类，
+我们在其他类中实例化我们的在线子系统时，可以通过获取当前游戏实例，利用GetSubsustem<Name>的方式来获取。
+当我们在定义类中获取就直接使用IOnlineSubsystem::Get()就可以了。
 
+## 以创建一个Session为例，分析SessionSubsystem中与之相关函数和变量的用处
+首先我们为了创建一个Session即与服务器建立一个连接，定义了一个委托和管理它的Handle，以及两个函数。
+1. 一个函数是用来当作委托的回调函数，该函数的作用就是当触发了CreateSession这个委托，会调用这个函数，执行这个函数的相关逻辑，一般可以写上地图的跳转功能(也可以写在主界面UI的点击功能下)
+2. 另一个函数是对于我们这GameSubsystem类来说的，这个类就是我们插件所依靠的类，而我们也只能操作这个类去调用会话接口的内部函数实现创建一个会话的功能。所以这个函数的主要作用就有如下几点
+- 如果存在Session那么先删除
+- 对Session如何连接进行设置包括分配键值对
+- 将我们定义的委托绑定到SessionInterface的委托列表中，并存储Handle
+- 利用SessionInterface中的CreateSession创建一个Session
+- 如果创建失败Clear Handle
+3. 委托，就是当我们实现上一函数时，执行到第4步，如果成功，会去调用回调函数的实现
+4. Handle，监视委托的变量，用于删除和维护
+
+
+# 构建简单的UI界面实现，点击按钮进行连接
+UI的源文件中主要需要进行两个按钮事件的绑定，
+1. 首先需要定义两个UButton的变量，该变量名字需要和蓝图UI中的Button名字一样。
+2. 其次定义OnClicked事件触发后的回调函数
+3. 定义一个我们自己新建的MultiplayerSessionSubsystem的变量，该变量是用来在OnClicked对应的回调函数中实现我们的具体函数的，这样可以实现逻辑之间的分离。
+```c++
+void UMenuWidget::Button_HostClicked()
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Host Button Clicked")));
+	}
+
+	//调用Subsytem中的实际函数
+	if (MultiplayerSessionSubsystem)
+	{
+		MultiplayerSessionSubsystem->CreateSession(NumPublicConnections, MatchType);
+	}
+}
+```
+4. 实现OnClicked委托的绑定，重载基类的Intialized函数
+```c++
+bool UMenuWidget::Initialize()
+{
+	if (!Super::Initialize())
+	{
+		return false;
+	}
+
+	//利用自带委托绑定回调函数
+	if (Button_Host)
+	{
+		Button_Host->OnClicked.AddDynamic(this, &UMenuWidget::Button_HostClicked);
+	}
+	if (Button_Join)
+	{
+		Button_Join->OnClicked.AddDynamic(this, &UMenuWidget::Button_JoinClicked);
+	}
+	return true;
+}
+```
+5. 当成功连接到大厅，取出UI，并修改控制权，重载基类的OnLevelRemovedFromWorld函数
+
+# 菜单UI->GameSubSystem(插件的依靠类)->SessionInterface
+为了实现能够创建一个会话，加入一个会话等功能，本质上是通过调用SessionInterface类中的一系列CreateSession，FindSession来实现的。
+而在实现Create或者Find后，我们需要插件干什么(跳转...)这时候就需要使用委托和回调函数，在Create和Find后自动调用，这一步是在GameSubsystem类中实现的。
+那么什么时候开始Create或者Find呢？显然就是点击按钮这种操作，所以在菜单UI中就需要将OnClicked的事件绑定我们GameSubSystem中的一个函数(SessionCreate)，这个函数就是初始化Session的一些设置，并且将委托添加到SessionInterface的委托列表，以及最主要的功能SessionInterface->CreateSession(...)

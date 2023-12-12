@@ -44,6 +44,7 @@ protected:
 private:
 	//Session接口
 	IOnlineSessionPtr SessionInterface;
+	TSharedPtr<FOnlineSessionSettings> SessionSettings;
 
 	//回调函数对应的委托,以及委托对应的Handle
 	//Handle用来维护或者删除对应的委托
