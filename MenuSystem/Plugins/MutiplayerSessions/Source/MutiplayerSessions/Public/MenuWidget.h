@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Interfaces/OnlineSessionInterface.h"
 #include "MenuWidget.generated.h"
 
 /**
@@ -27,6 +28,18 @@ protected:
 
 	//利用重写，实现当我们跳转关卡时的一些逻辑
 	virtual void OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld) override;
+
+	//
+	//自定义委托的回调函数，委托在UMultiPlayerSessionSubsystem
+	//
+	UFUNCTION()
+		void OnCreateSession(bool bWasSuccessful);
+	UFUNCTION()
+		void OnDestroySession(bool bWasSuccessful);
+	UFUNCTION()
+		void OnStartSession(bool bWasSuccessful);
+	void OnFindSession(const TArray<FOnlineSessionSearchResult>& SessionResults, bool bWasSuccessful);
+	void OnJoinSession(EOnJoinSessionCompleteResult::Type Result);
 
 private:
 	//按钮,利用meta指定变量链接到按钮的控件

@@ -144,6 +144,7 @@ void AMenuSystemCharacter::JoinGameSession()
 		return;
 	}
 
+	//FindSessions
 	OnlineSessionInterface->AddOnFindSessionsCompleteDelegate_Handle(FindSessionCompleteDelegate);
 	//设置搜索返回结果
 	SessionSearch = MakeShareable(new FOnlineSessionSearch());

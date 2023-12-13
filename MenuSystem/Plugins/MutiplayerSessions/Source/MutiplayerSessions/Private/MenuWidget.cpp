@@ -3,7 +3,9 @@
 
 #include "MenuWidget.h"
 #include "MultiplayerSessionSubsystem.h"
+#include "OnlineSubsystem.h"
 #include "Components/Button.h"
+#include "OnlineSessionSettings.h"
 
 void UMenuWidget::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch)
 {
@@ -43,6 +45,20 @@ void UMenuWidget::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch
 	{
 		MultiplayerSessionSubsystem = GameInstance->GetSubsystem<UMultiplayerSessionSubsystem>();
 	}
+
+	//绑定回调函数
+	if (MultiplayerSessionSubsystem)
+	{
+		//动态委托的绑定回调函数
+		MultiplayerSessionSubsystem->MultiPlayerOnCreateSessionComplete.AddDynamic(this, &UMenuWidget::OnCreateSession);
+		MultiplayerSessionSubsystem->MultiPlayerOnDestroySessionComplete.AddDynamic(this, &UMenuWidget::OnDestroySession);
+		MultiplayerSessionSubsystem->MultiPlayerOnStartSessionComplete.AddDynamic(this, &UMenuWidget::OnStartSession);
+
+		//静态委托绑定回调函数
+		MultiplayerSessionSubsystem->MultiPlayerOnFindSessionComplete.AddUObject(this,&UMenuWidget::OnFindSession);
+		MultiplayerSessionSubsystem->MultiPlayerOnJoinSessionComplete.AddUObject(this, &UMenuWidget::OnJoinSession);
+
+	}
 }
 
 bool UMenuWidget::Initialize()
@@ -71,35 +87,107 @@ void UMenuWidget::OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld)
 	Super::OnLevelRemovedFromWorld(InLevel, InWorld);
 }
 
+
+//自定义委托的回调函数
+void UMenuWidget::OnCreateSession(bool bWasSuccessful)
+{
+	if (bWasSuccessful)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Session Created Successfully")));
+		}
+		//当会话创建成功才进行跳转
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			World->ServerTravel("/Game/ThirdPersonCPP/Maps/Lobby?listen");
+		}
+	}
+	else
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString(TEXT("Session Created Failed")));
+		}
+	}
+	
+}
+
+void UMenuWidget::OnDestroySession(bool bWasSuccessful)
+{
+}
+
+void UMenuWidget::OnStartSession(bool bWasSuccessful)
+{
+}
+
+//接受SessionInterface传回给SessIonSubsystem的结果，由SessionSubsytem利用委托传过来，然后进行处理寻找
+void UMenuWidget::OnFindSession(const TArray<FOnlineSessionSearchResult>& SessionResults, bool bWasSuccessful)
+{
+	for (auto Result : SessionResults)
+	{
+		FString SettingsValue;
+		Result.Session.SessionSettings.Get(FName("MatchTypeXTG111"), SettingsValue);
+		if (SettingsValue == MatchType)
+		{
+			if (MultiplayerSessionSubsystem)
+			{
+				MultiplayerSessionSubsystem->JoinSession(Result);
+				return;
+			}
+		}
+	}
+}
+
+void UMenuWidget::OnJoinSession(EOnJoinSessionCompleteResult::Type Result)
+{
+	//为了使得菜单与插件相互独立，所以我们需要单独获取SessionInterface
+	//获得onlinesubsystem的变量
+	IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
+	if (Subsystem)
+	{
+		//将会话接口实例化
+		IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface();
+		if (SessionInterface.IsValid())
+		{
+			FString Addr;
+			SessionInterface->GetResolvedConnectString(NAME_GameSession, Addr);
+
+			//客户端利用ClientTrave进行地图转换
+			APlayerController* PlayerController = GetGameInstance()->GetFirstLocalPlayerController();
+			if (PlayerController)
+			{
+				PlayerController->ClientTravel(Addr, ETravelType::TRAVEL_Absolute);
+			}
+		}
+	}
+}
+
 void UMenuWidget::Button_HostClicked()
 {
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Host Button Clicked")));
-	}
+	//if (GEngine)
+	//{
+	//	GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Host Button Clicked")));
+	//}
 
 	//调用Subsytem中的实际函数
 	if (MultiplayerSessionSubsystem)
 	{
 		MultiplayerSessionSubsystem->CreateSession(NumPublicConnections, MatchType);
-		//UWorld* World = GetWorld();
-		//if (World)
-		//{
-		//	World->ServerTravel("/Game/ThirdPersonCPP/Maps/Lobby?listen");
-		//}
 	}
 	
 }
 
 void UMenuWidget::Button_JoinClicked()
 {
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Join Button Clicked")));
-	}
+	//if (GEngine)
+	//{
+	//	GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Join Button Clicked")));
+	//}
 	if (MultiplayerSessionSubsystem)
 	{
-		//MultiplayerSessionSubsystem->JoinSession();
+		MultiplayerSessionSubsystem->FindSessions(50000);
 	}
 }
 
