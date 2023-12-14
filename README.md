@@ -381,3 +381,96 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMultiPlayerOnStartSessionComplete, 
 2. UI的FindSession接受信息后，将搜寻与键值对匹配的session，如果搜寻成功，那么调用Gamesubsytem的JoinSession，Gamesubsytem的JoinSession主要就用来掉用SessionInterface的JoinSession，与Gamesubsytem的FindSession作用类似。然后将值广播给菜单UI中的JoinSession
 3. 当菜单中的JoinSession得到一个结果后，就开始加载地图，而我们是客户端的操作，所以需要获取到服务器创建的会话接口，为了实现与插件的分离，我们自定义了一个局部变量首先获取Subsystem，然后利用Subsystem获取SessionInterface，之后就通过SessionInterface获取服务器地址，然后利用游戏实例GetGameInstance获取客户端的玩家控制权，最后利用ClientTravel进行关卡切换
 至此插件的创建和加入功能就完成了
+
+# 利用GameMode实现跟踪游戏状态
+GameState和GameMode
+GameMode是一个游戏关卡规则的制造者，GameState存储了游戏的状态数据包含玩家数量，我们通过GameMode访问GameState来获取加入我们游戏的玩家数量。
+在项目不是插件中新建一个GameModeBase，其主要函数就是重载PostLogin和Logout，我们利用GameState获取玩家数量
+```c++
+void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
+{
+	Super::PostLogin(NewPlayer);
+	
+	//GetGameState<AGameStateBase>()获取当前的GameState
+	if (GetGameState<AGameStateBase>())
+	{
+	//利用GameState获取玩家数量
+		int32 NumberOfPlayers = GetGameState<AGameStateBase>()->PlayerArray.Num();
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(1, 60.f, FColor::Yellow, FString::Printf(TEXT("Player in game: %d"), NumberOfPlayers));
+			
+			//利用PlayerState获取玩家的名字
+			APlayerState* PlayerState = NewPlayer->GetPlayerState<APlayerState>();
+			if (PlayerState)
+			{
+				FString PlayerName = PlayerState->GetPlayerName();
+				GEngine->AddOnScreenDebugMessage(-1, 60.f, FColor::Cyan, FString::Printf(TEXT("%s has Join the Game"), *PlayerName));
+			}
+			
+		}
+	}
+}
+```
+之后需要在UE中新建一个以这个GameMode为父类的BP_GameMode，然后运用在大厅地图上，这样每当有人加入到我们的大厅地图就可以打印信息了
+
+# 删除会话和创建会话的优化
+我们之前在创建会话中，有当存在会话，调用Destroy删除会话，但这样存在一个问题，就是删除是需要时间，但我们客户端已经被提出了服务器，这时候去创建是不能创建的。所以我们利用我们自己创建的DestroySession函数来实现销毁功能，在创建会话中检测到还存在一个会话的时候，我们先利用一个bool变量来表示我们正在由删除向创建变化，我们调用DesstroySession函数，其里面绑定SessionInterface的Destroy委托，当删除成功的时候，判断bool值，如果为true，那么重置bool值，然后调用创建的函数。并且创建会话函数的参数，我们可以先用变量存起来，两个变量的值就是上一次创建会话的参数值
+```c++
+//.h
+	//用来判断是否还在删除，还是删除完成
+	bool bCreateSessionOnDestroy{ false };
+
+	//存储一些创建的信息，创建的连接数量和匹配的键值对
+	int32 LastNumPublicConnections;
+	FString LastMatchType;
+	
+//.cpp
+
+//creatsession
+	//如果存在会话销毁它
+	auto ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
+	if(ExistingSession != nullptr)
+	{
+		bCreateSessionOnDestroy = true;
+		LastNumPublicConnections = NumPublicConnections;
+		LastMatchType = MatchType;
+		//使用自己创建的销毁会话函数
+		DestroySession();
+	}
+
+//destroysession
+void UMultiplayerSessionSubsystem::DestroySession()
+{
+	if (!SessionInterface.IsValid())
+	{
+		//向UI响应
+		MultiPlayerOnDestroySessionComplete.Broadcast(false);
+		return;
+	}
+
+	DestroySessionCompleteDelegateHandle = SessionInterface->AddOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegate);
+	if (!SessionInterface->DestroySession(NAME_GameSession))
+	{
+		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
+		MultiPlayerOnDestroySessionComplete.Broadcast(false);
+	}
+}
+
+//ondestroysession
+void UMultiplayerSessionSubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
+{
+	if (SessionInterface)
+	{
+		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
+	}
+	//当被提出服务器，想自己创建时，点击Host先判断是否存在，如果存在调用Destroy，然后在回调成功下继续创建
+	if (bWasSuccessful && bCreateSessionOnDestroy)
+	{
+		bCreateSessionOnDestroy = false;
+		CreateSession(LastNumPublicConnections, LastMatchType);
+	}
+	MultiPlayerOnDestroySessionComplete.Broadcast(bWasSuccessful);
+
+}
+```

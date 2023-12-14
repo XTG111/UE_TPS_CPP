@@ -59,10 +59,10 @@ AMenuSystemCharacter::AMenuSystemCharacter() :
 		OnlineSessionInterface = OnlineSubsystem->GetSessionInterface();
 
 		//打印调试信息
-		if (GEngine)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Blue, FString::Printf(TEXT("Found subsystem: %s"), *OnlineSubsystem->GetSubsystemName().ToString()));
-		}
+		//if (GEngine)
+		//{
+		//	GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Blue, FString::Printf(TEXT("Found subsystem: %s"), *OnlineSubsystem->GetSubsystemName().ToString()));
+		//}
 	}
 
 	//构造Session委托
@@ -128,7 +128,7 @@ void AMenuSystemCharacter::CreateGameSession()
 	SessionSettings->bUsesPresence = true;
 
 	//设置一些键值对，使得我们可以区分其他的session连接
-	SessionSettings->Set(FName("MatchTypeJZC"), FString("ClientJCS"), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	SessionSettings->Set(FName("MatchType"), FString("FreeForAll"), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
 
 	//用于创建session的第一个参数，IP地址
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
@@ -201,13 +201,13 @@ void AMenuSystemCharacter::OnFindSessionComplete(bool bWasSuccessful)
 		FString User = Result.Session.OwningUserName;
 
 		FString MatchType;
-		Result.Session.SessionSettings.Get(FName("MatchTypeJZC"), MatchType);
+		Result.Session.SessionSettings.Get(FName("MatchType"), MatchType);
 
 		if (GEngine) {
 			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Cyan, FString::Printf(TEXT("ID:%s, User:%s"), *Id, *User));
 		}
 
-		if (MatchType == FString("ClientJCS"))
+		if (MatchType == FString("FreeForAll"))
 		{
 			if (GEngine) {
 				GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Cyan, FString::Printf(TEXT("Client Session MatchType:%s"), *MatchType));

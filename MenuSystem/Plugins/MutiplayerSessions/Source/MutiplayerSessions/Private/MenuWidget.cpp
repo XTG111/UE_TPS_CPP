@@ -7,8 +7,9 @@
 #include "Components/Button.h"
 #include "OnlineSessionSettings.h"
 
-void UMenuWidget::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch)
+void UMenuWidget::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch, FString LobbyPath)
 {
+	PathToLobby = FString::Printf(TEXT("%s?listen"),*LobbyPath);
 	//使得参数接受形参值
 	NumPublicConnections = NumberOfPublicConnections;
 	MatchType = TypeOfMatch;
@@ -101,7 +102,7 @@ void UMenuWidget::OnCreateSession(bool bWasSuccessful)
 		UWorld* World = GetWorld();
 		if (World)
 		{
-			World->ServerTravel("/Game/ThirdPersonCPP/Maps/Lobby?listen");
+			World->ServerTravel(PathToLobby);
 		}
 	}
 	else
@@ -110,6 +111,7 @@ void UMenuWidget::OnCreateSession(bool bWasSuccessful)
 		{
 			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString(TEXT("Session Created Failed")));
 		}
+		Button_Host->SetIsEnabled(true);
 	}
 	
 }
@@ -125,10 +127,19 @@ void UMenuWidget::OnStartSession(bool bWasSuccessful)
 //接受SessionInterface传回给SessIonSubsystem的结果，由SessionSubsytem利用委托传过来，然后进行处理寻找
 void UMenuWidget::OnFindSession(const TArray<FOnlineSessionSearchResult>& SessionResults, bool bWasSuccessful)
 {
+	if (MultiplayerSessionSubsystem == nullptr)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString(TEXT("No MultiplayerSessionSubsystem")));
+		}
+		return;
+	}
+
 	for (auto Result : SessionResults)
 	{
 		FString SettingsValue;
-		Result.Session.SessionSettings.Get(FName("MatchTypeXTG111"), SettingsValue);
+		Result.Session.SessionSettings.Get(FName("MatchType"), SettingsValue);
 		if (SettingsValue == MatchType)
 		{
 			if (MultiplayerSessionSubsystem)
@@ -136,6 +147,24 @@ void UMenuWidget::OnFindSession(const TArray<FOnlineSessionSearchResult>& Sessio
 				MultiplayerSessionSubsystem->JoinSession(Result);
 				return;
 			}
+		}
+	}
+	if (!bWasSuccessful || SessionResults.Num() == 0)
+	{
+		Button_Join->SetIsEnabled(true);
+	}
+	if (!bWasSuccessful)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString(TEXT("Session Find Failed")));
+		}
+	}
+	if (SessionResults.Num() == 0)
+	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString(TEXT("SessionResults.Num() == 0")));
 		}
 	}
 }
@@ -162,6 +191,14 @@ void UMenuWidget::OnJoinSession(EOnJoinSessionCompleteResult::Type Result)
 			}
 		}
 	}
+	if (Result != EOnJoinSessionCompleteResult::Success)
+	{
+		Button_Join->SetIsEnabled(true);
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Red, FString(TEXT("Join Failed")));
+		}
+	}
 }
 
 void UMenuWidget::Button_HostClicked()
@@ -172,6 +209,7 @@ void UMenuWidget::Button_HostClicked()
 	//}
 
 	//调用Subsytem中的实际函数
+	Button_Host->SetIsEnabled(false);
 	if (MultiplayerSessionSubsystem)
 	{
 		MultiplayerSessionSubsystem->CreateSession(NumPublicConnections, MatchType);
@@ -185,6 +223,7 @@ void UMenuWidget::Button_JoinClicked()
 	//{
 	//	GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Join Button Clicked")));
 	//}
+	Button_Join->SetIsEnabled(false);
 	if (MultiplayerSessionSubsystem)
 	{
 		MultiplayerSessionSubsystem->FindSessions(50000);

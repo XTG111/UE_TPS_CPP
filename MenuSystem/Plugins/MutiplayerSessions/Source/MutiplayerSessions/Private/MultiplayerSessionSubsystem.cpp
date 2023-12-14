@@ -32,7 +32,11 @@ void UMultiplayerSessionSubsystem::CreateSession(int32 NumPublicConnections, FSt
 	auto ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
 	if(ExistingSession != nullptr)
 	{
-		SessionInterface->DestroySession(NAME_GameSession);
+		bCreateSessionOnDestroy = true;
+		LastNumPublicConnections = NumPublicConnections;
+		LastMatchType = MatchType;
+		//使用自己创建的销毁会话函数
+		DestroySession();
 	}
 
 	//绑定委托，并存储handle
@@ -51,7 +55,9 @@ void UMultiplayerSessionSubsystem::CreateSession(int32 NumPublicConnections, FSt
 	SessionSettings->bUsesPresence = true;
 
 	//设置一些键值对，使得我们可以区分其他的session连接
-	SessionSettings->Set(FName("MatchTypeXTG111"), MatchType, EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	SessionSettings->Set(FName("MatchType"), MatchType, EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+	SessionSettings->BuildUniqueId = 1;
+	SessionSettings->bUseLobbiesIfAvailable = true;
 
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	//当会话创建失败，删除这个Handle
@@ -108,6 +114,19 @@ void UMultiplayerSessionSubsystem::JoinSession(const FOnlineSessionSearchResult&
 
 void UMultiplayerSessionSubsystem::DestroySession()
 {
+	if (!SessionInterface.IsValid())
+	{
+		//向UI响应
+		MultiPlayerOnDestroySessionComplete.Broadcast(false);
+		return;
+	}
+
+	DestroySessionCompleteDelegateHandle = SessionInterface->AddOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegate);
+	if (!SessionInterface->DestroySession(NAME_GameSession))
+	{
+		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
+		MultiPlayerOnDestroySessionComplete.Broadcast(false);
+	}
 }
 
 void UMultiplayerSessionSubsystem::StartSession()
@@ -165,6 +184,18 @@ void UMultiplayerSessionSubsystem::OnJoinSessionComplete(FName SessionName, EOnJ
 
 void UMultiplayerSessionSubsystem::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
 {
+	if (SessionInterface)
+	{
+		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
+	}
+	//当被提出服务器，想自己创建时，点击Host先判断是否存在，如果存在调用Destroy，然后在回调成功下继续创建
+	if (bWasSuccessful && bCreateSessionOnDestroy)
+	{
+		bCreateSessionOnDestroy = false;
+		CreateSession(LastNumPublicConnections, LastMatchType);
+	}
+	MultiPlayerOnDestroySessionComplete.Broadcast(bWasSuccessful);
+
 }
 
 void UMultiplayerSessionSubsystem::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)

@@ -90,4 +90,11 @@ private:
 	FOnStartSessionCompleteDelegate StartSessionCompleteDelegate;
 	FDelegateHandle StartSessionCompleteDelegateHandle;
 
+	//用来判断是否还在删除，还是删除完成
+	bool bCreateSessionOnDestroy{ false };
+
+	//存储一些创建的信息，创建的连接数量和匹配的键值对
+	int32 LastNumPublicConnections;
+	FString LastMatchType;
+
 };

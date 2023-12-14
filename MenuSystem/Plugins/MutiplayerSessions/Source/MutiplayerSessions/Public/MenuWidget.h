@@ -19,7 +19,7 @@ public:
 
 	//设置鼠标的可见性等
 	UFUNCTION(BlueprintCallable)
-		void MenuSetup(int32 NumberOfPublicConnections = 4, FString TypeOfMatch = FString(TEXT("XTG111")));
+		void MenuSetup(int32 NumberOfPublicConnections = 4, FString TypeOfMatch = FString(TEXT("FreeForAll")), FString LobbyPath = FString(TEXT("/Game/ThirdPersonCPP/Maps/Lobby")));
 
 protected:
 
@@ -64,6 +64,9 @@ private:
 
 	//一些参数，实现自定义输入
 	int32 NumPublicConnections{ 4 };
-	FString MatchType{ TEXT("XTG111") };
+	FString MatchType{ TEXT("FreeForAll") };
+
+	//登录大厅
+	FString PathToLobby{ TEXT("") };
 	
 };
