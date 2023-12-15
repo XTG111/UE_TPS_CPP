@@ -474,3 +474,6 @@ void UMultiplayerSessionSubsystem::OnDestroySessionComplete(FName SessionName, b
 
 }
 ```
+
+## 构建AnimInstance的父类
+主要重载两个函数，一个是在初始化NativeInitializeAnimation，一个是每帧执行NativeUpdateAnimation
