@@ -35,7 +35,9 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	Speed = Velocity.Size();
 
 	//是否在空中
+	//坠落判断
 	bIsInAir = XCharacter->GetCharacterMovement()->IsFalling();
+	//跳跃判断
 	bJump = XCharacter->bUnderJump;
 
 	//是否在加速

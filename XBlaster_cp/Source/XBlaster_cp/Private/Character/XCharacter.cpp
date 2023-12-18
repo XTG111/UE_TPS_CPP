@@ -4,9 +4,15 @@
 #include "Character/XCharacter.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Components/WidgetComponent.h"
+#include "HUD/OverHeadWidget.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include <Kismet/KismetMathLibrary.h>
 #include <Kismet/GameplayStatics.h>
+#include "Net/UnrealNetWork.h"
+#include "Weapon/WeaponParent.h"
+#include "BlasterComponent/CombatComponent.h"
+
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -25,12 +31,42 @@ AXCharacter::AXCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
 
+	//初始化角色头顶名字显示
+	OverHeadWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("OverHeadWidget"));
+	OverHeadWidget->SetupAttachment(RootComponent);
+
+	//武器组件
+	CombatComp = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComp"));
+	//战斗控制，需要通过服务器复制给客户端
+	CombatComp->SetIsReplicated(true);
+}
+
+void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	//复制我们需要的变量生命周期,只复制到当前客户端
+	DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon,COND_OwnerOnly);
+}
+
+//初始化组件中的值
+void AXCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	if (CombatComp)
+	{
+		CombatComp->CharacterEx = this;
+	}
 }
 
 // Called when the game starts or when spawned
 void AXCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	//给OverHeadWidget声明
+	UOverHeadWidget* CharacterHeadWidget = Cast<UOverHeadWidget>(OverHeadWidget->GetUserWidgetObject());
+	CharacterHeadWidget->ShowPlayerNetRole(this);
 	
 }
 
@@ -38,7 +74,6 @@ void AXCharacter::BeginPlay()
 void AXCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 // Called to bind functionality to input
@@ -51,6 +86,7 @@ void AXCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	PlayerInputComponent->BindAxis("Turn", this, &AXCharacter::Turn);
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AXCharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &AXCharacter::StopJumping);
+	PlayerInputComponent->BindAction("Equip", IE_Pressed, this, &AXCharacter::EquipWeapon);
 }
 
 void AXCharacter::MoveForward(float value)
@@ -94,6 +130,72 @@ void AXCharacter::StopJumping()
 	Super::StopJumping();
 	bUnderJump = false;
 }
+
+
+//装备武器
+//只需要在服务器上验证，如果在服务器上的Actor
+void AXCharacter::EquipWeapon()
+{
+	if (CombatComp)
+	{
+		if (HasAuthority())
+		{
+			CombatComp->EquipWeapon(OverlappingWeapon);
+		}
+		else
+		{
+			ServerEquipWeapon();
+		}
+	}
+}
+//在客户端上的Actor执行
+void AXCharacter::ServerEquipWeapon_Implementation()
+{
+	if (CombatComp)
+	{
+		CombatComp->EquipWeapon(OverlappingWeapon);
+	}
+}
+
+//客户端调用
+//LastWeapon代表了上一次重叠事件的Actor，对于现在来说，如果我们离开了检测去，LastWeapon就不为空，这时候就要把它的widget设置为false
+void AXCharacter::OnRep_OverlappingWeapon(AWeaponParent* LastWeapon)
+{
+	if (OverlappingWeapon)
+	{
+		OverlappingWeapon->ShowPickUpWidget(true);
+	}
+	if (LastWeapon)
+	{
+		LastWeapon->ShowPickUpWidget(false);
+	}
+}
+
+
+//服务器调用
+void AXCharacter::SetOverlappingWeapon(AWeaponParent* Weapon)
+{
+	//对于服务器上的角色操作，我们在对OverlappingWeapon赋值之前检测，它是否有效，如果有效那么说明之前产生过，而当球体的EndOverlap函数也调用的是这个函数，所以当我们离开时
+	//WOverlappingWeapon一定不为空，这时候直接设置false即可
+	if (OverlappingWeapon)
+	{
+		OverlappingWeapon->ShowPickUpWidget(false);
+	}
+
+	OverlappingWeapon = Weapon;
+
+	//写的所有逻辑都是针对服务器而言，通过复制将一些属性复制到客户端，利用了Rep_Notify使得UI显示只有客户端能看见
+	//为了使得服务器上的角色也能够看见，那么就要单独判断
+	//通过IsLocallyControlled()来判断当前是否是服务器上的本地操作
+	if (IsLocallyControlled())
+	{
+		if (OverlappingWeapon)
+		{
+			OverlappingWeapon->ShowPickUpWidget(true);
+		}
+	}
+}
+
 
 
 

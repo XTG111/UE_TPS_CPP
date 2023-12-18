@@ -475,5 +475,281 @@ void UMultiplayerSessionSubsystem::OnDestroySessionComplete(FName SessionName, b
 }
 ```
 
-## 构建AnimInstance的父类
+# 构建AnimInstance的父类
 主要重载两个函数，一个是在初始化NativeInitializeAnimation，一个是每帧执行NativeUpdateAnimation
+
+# Seamless Travel
+GameMode->bUseSeamlessTravel = true;
+需要一个过渡地图，用于在地图切换之间使用，相当于一个过渡界面.
+## Travel的方式
+UWorld::ServerTravel
+只有服务器调用，当服务器切换地图后，所有连接的客户端一同跳转，利用APlayerController::ClientTravel
+
+APlayerController::ClientTravel
+必须指定服务器地址
+
+## 创建一个GameMode
+该GameMode用于统计人数，当连入大厅的人数到达阈值，进行跳转
+
+# LocalRole RemoteRole NetWorkRole
+区分现在角色被谁操控
+ENetRole:
+
+当是LocalRole时，本地，相当于服务器本地创建，然后传给每个客户端
+	1. Role_Authority：服务器
+	2. Simulatedproxy：其他客户端上你的角色
+	3. AutonomousProxy：自己机器上的角色，可以被你操控
+	4. None：没有一个机器上有这个角色
+
+当是RemoteRole时，相当于是每个客户端创建，然后传给服务器
+	1. Role_Authority：客户端你操控的角色和其他客户端显示在你的客户端上的角色
+	2. Simulatedproxy：服务器上观测到对应的所有客户端角色
+	3. AutonomousProxy：服务器上操控的角色
+	4. None：没有一个机器上有这个角色
+	
+# 设置武器
+编写的所有逻辑都是服务器的逻辑
+客户端和服务器
+将重叠判断操作都放在服务端进行，设置bReplicates = true;新建一个武器类可以作为父类，然后设置骨骼网格体组件和球体检测组件，默认设置球体网格体组件的碰撞为对所有通道忽略，不开启碰撞，这是在客户端的设置，因为客户端只需要播放一个拾取动画。
+判断是否能够拾取，则使通过服务器来判断的，所以服务器上的武器球体需要设置为模拟物理，并且对人的Channel设置重叠事件
+
+## Replication
+bReplicates = true;
+必须开启复制
+
+在客户端显示服务器的处理结果，repnotify
+在角色文件中，添加武器的变量并定义UPROPERTY(Replicated)，为了获取这个复制的变量，需要重写一个函数GetLifetimeReplicatedProps，为了复制这个变量实例的生命周期
+```c++
+//.h
+virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+UPROPERTY(Replicated)
+class AWeapon* Weapon;
+
+//.cpp
+void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	//复制我们需要的变量生命周期,只复制到当前操控角色的客户端
+	DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon,COND_OwnerOnly);
+}
+```
+我们在武器蓝图中定义了一个显示可拾取的UI，如果只是在代码中设置重叠事件响应调用SetVisibility函数，那么只会在服务器上有反应，所以我们需要向客户端复制这个情况，首先在角色蓝图中设置一个存储weapon的变量，并定义一个给weapon赋值的函数，当我们在武器代码中发生重叠或者结束重叠时，调用这个函数给角色的weapon赋值。
+
+然后在定义的RepNotify函数中，编写客户端的响应，比如显示UI和消失UI。由于RepNotify我们定义的是复制时调用，所以只有服务器的值复制到客户端时才会调用UI的显示和消失，而如果服务器上存在一个可以控制的actor，为了使得服务器上的actor也有这个效果，我们可以在给weapon赋值的函数上进行UI的显示和消失设置(记住，一切代码都是运行在服务器上的)，服务器和客户端通过复制的方式传递服务器处理后的信息。
+
+```c++
+//Character_Class
+//.h
+
+//角色中存在的武器
+UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
+class AWeapon* OverlappingWeapon;
+//Rep_Notify函数,LastWeapon可以存储上一次碰撞的结果
+UFUNCTION()
+void OnRep_OverlappingWeapon(AWeapon* LastWeapon)
+
+//设置OverlappingWeapon的函数，在Weapon_Class中调用
+//并且服务器上Actor对于球体碰撞的响应也写在这里，因为Weapon_Class只调用了这一个函数
+UFUNCTION()
+void SetOverlappingWeapon(AWeapon* Weapon);
+
+//.cpp
+void OnRep_OverlappingWeapon(AWeapon* LastWeapon)
+{
+	//对于重叠，检测OverlappingWeapon是否为空
+	if(OverlappingWeapon)
+	{
+		OverlappingWeapon->ShowWidget(true);
+	}
+	//对于结束重叠，LastWeapon不为空
+	if(LastWeapon)
+	{
+		LastWeapon->ShowWidget(false);
+	}
+}
+
+void SetOverlappingWeapon(AWeapon* Weapon)
+{
+	//服务器上的Actor结束重叠，此时OverlappingWeapon还不为Null
+	if(OverlappingWeapon)
+	{
+		OverlappingWeapon->ShowWidget(false);
+	}
+	OverlappingWeapon = Weapon;
+	//服务器上的Actor开始重叠，被Weapon赋值，不为空
+	if(OverlappingWeapon)
+	{
+		OverlappingWeapon->ShowWidget(true);
+	}
+}
+
+//Weapon_Class
+//三个函数
+OnBeginOverlap{Character_Class->SetOverlappingWeapon(this);}
+EndOverlap{Character_Class->SetOverlappingWeapon(nullptr);}
+//控制UI的显示
+void AWeaponParent::ShowPickUpWidget(bool bShowWidget)
+{
+	if (PickUpWidgetComp)
+	{
+		PickUpWidgetComp->SetVisibility(bShowWidget);
+	}
+	
+}
+```
+
+# 装备武器
+我们为战斗系统新建了一个Component，这个Component将管理我们的所有有关战斗的功能，为了实现装备武器，利用骨骼Socket实现武器的附加，并且装备武器这个功能，应当是服务器处理请求，然后通过复制状态传递给客户端，也就是说，在角色源码中拾取的动作响应应当限制为服务器即使用HasAuthority()
+
+首先在武器源码中，设置武器状态，对应之前我们定义的枚举值。然后在角色源码中，设置绑定按键Equip，装备的武器就是发生了overlap的武器，然后在战斗Component中，进行具体的附加操作
+获取socket:Character->GetMesh()->GetSocketByName()
+附加武器到骨骼：Socket->AttachActor(WeaponActor,Character);
+附加上还需要关闭显示的widget
+
+# RPC
+客户端使用RPC，远处调用服务器上的函数，通过使用UFUNCTION()说明符来指定RPC调用，比如客户端调用，服务器执行使用UFUNCTION(Server)，并且还需要指定，RPC的可靠性(类似TCP和UDP)。
+在定义具体实现是函数名需要修改为FUNCName_Implementation。
+为了实现客户端拾取操作的显示，利用RPC定义函数，函数中调用战斗组件中的装备函数，之后再在角色的按键响应函数中调用即可实现。
+
+# 复制传递每个客户端的枪械状态
+
+
+# RPC和属性复制
+两种服务器与客户端交互的方法，属性复制只能从服务器到客户端，也就是说Rep_Notify函数只会在客户端上实现，且必须在构造函数中开启bReplicates = true;或者对于某个组件使用SetIsReplicated(true)
+RPC是双向的，通过UFUCNTION()说明Sever还是Client
+
+任何逻辑都是服务器上运行。
+
+## 属性复制的基本流程
+1. 设置要复制的类对象，或者组件的Replicate
+```c++
+bReplicates = true;
+SetIsReplicated(true);
+```
+bReplicates = true;SetIsReplicated(true)
+2. UE内部定义的用于复制传递生命周期的函数GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps)
+```c++
+//.h
+//通过复制向客户端传递服务器的处理结果
+virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+//.cpp
+void AWeaponParent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AWeaponParent, WeaponState);
+}
+//若只要操控actor的客户端有复制结果，应当使用
+DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon,COND_OwnerOnly);
+
+//分别对应 要复制的类，要复制的对象
+```
+3. 如果当复制值发生改变时，客户端另一些变量也要发生改变，这时候就需要使用RepNotify功能，将服务器此时的状态再传递给客户端
+```c++
+//.h
+//声明一个要复制的变量
+UPROPERTY(VisibleAnywhere,ReplicatedUsing = OnRep_FuncName)
+	class Class* A;
+//RepNotify函数
+UFUNCTION()
+void OnRep_FuncName();
+```
+RepNotify函数一般不带参数，如果需要带只能带一个同样类型的形参。该参数可以表示上一次复制时的值。
+4. 这样我们就可以再RepNotify函数中写变量是怎么变化的了，和服务器的写法是一样的。
+```c++
+//通过复制，客户端调用
+void AWeaponParent::OnRep_WeponState()
+{
+	switch (WeaponState)
+	{
+	case EWeaponState::EWS_Initial:
+		break;
+	case EWeaponState::EWS_Equipped:
+		ShowPickUpWidget(false);
+		
+		//SphereComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		break;
+	case EWeaponState::EWS_Dropped:
+		break;
+	case EWeaponState::EWS_MAX:
+		break;
+	default:
+		break;
+	}
+}
+
+//服务器调用
+void AWeaponParent::SetWeaponState(EWeaponState State)
+{
+	WeaponState = State;
+	switch (WeaponState)
+	{
+	case EWeaponState::EWS_Initial:
+		break;
+	case EWeaponState::EWS_Equipped:
+		//当装备上时应当关闭UI和球体碰撞
+		ShowPickUpWidget(false);
+		//禁用球体碰撞
+		SphereComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		break;
+	case EWeaponState::EWS_Dropped:
+		break;
+	case EWeaponState::EWS_MAX:
+		break;
+	default:
+		break;
+	}
+}
+```
+
+## RPC的基本流程
+RPC相当于函数调用，只不过是在一个机器请求，另一个机器调用实现后的结果返回请求的机器
+1. RPC是双向的，但也要定义其可复制的属性为true
+2. RPC使用说明符UFUNCTION(Server/Client, [Reliable])
+```c++
+	//RPC客户端调用，服务器执行，约定在函数名前加上Server
+	UFUNCTION(Server,Reliable)
+		void ServerEquipWeapon();
+```
+3. 在.cpp文件中实现函数
+```c++
+//在客户端上的Actor执行
+void AXCharacter::ServerEquipWeapon_Implementation()
+{
+	if (CombatComp)
+	{
+		CombatComp->EquipWeapon(OverlappingWeapon);
+	}
+}
+```
+需要注意的是，我们只是定义和声明了这个RPC函数，但是它不像属性复制的RepNotify函数可以自己调用，所以我们需要将其手动调用。
+\_Implementation是UE定义的，为了识别为RPC，在定义函数的时候需要加上，调用和声明不用
+4. 调用，我们对于需要调用的时候，就是按照单机游戏时，需要调用的位置进行判断。那么对于网络游戏，利用HasAuthority()来判断是不是服务器的Actor的请求调用，如果是，那么就和单机游戏的操作一样，如果不是，那么就调用这个RPC函数，RPC函数内部的实现也是和单机游戏一样的。
+```c++
+//装备武器
+//只需要在服务器上验证，如果在服务器上的Actor
+void AXCharacter::EquipWeapon()
+{
+	if (CombatComp)
+	{
+		if (HasAuthority())
+		{
+			CombatComp->EquipWeapon(OverlappingWeapon);
+		}
+		else
+		{
+			ServerEquipWeapon();
+		}
+	}
+}
+//在客户端上的Actor执行
+void AXCharacter::ServerEquipWeapon_Implementation()
+{
+	if (CombatComp)
+	{
+		CombatComp->EquipWeapon(OverlappingWeapon);
+	}
+}
+```
