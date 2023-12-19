@@ -6,6 +6,8 @@
 #include "Character/XCharacter.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Components/SphereComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Net/UnrealNetWork.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -15,6 +17,9 @@ UCombatComponent::UCombatComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 
 	// ...
+
+	BaseWalkSpeed = 350.f;
+	AimWalkSpeed = 100.f;
 }
 
 // Called every frame
@@ -25,6 +30,15 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	// ...
 }
 
+void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
+	DOREPLIFETIME(UCombatComponent, bUnderAiming);
+	//DOREPLIFETIME(UCombatComponent, BaseWalkSpeed);
+	//DOREPLIFETIME(UCombatComponent, AimWalkSpeed);
+}
+
 
 // Called when the game starts
 void UCombatComponent::BeginPlay()
@@ -32,7 +46,41 @@ void UCombatComponent::BeginPlay()
 	Super::BeginPlay();
 
 	// ...
-	
+	if (CharacterEx)
+	{
+		CharacterEx->GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+	}	
+}
+
+void UCombatComponent::SetAiming(bool bIsAiming)
+{
+	//为了避免网络延迟，导致动画的延迟
+	bUnderAiming = bIsAiming;
+	ServerSetAiming(bIsAiming);
+	if (CharacterEx)
+	{
+		CharacterEx->GetCharacterMovement()->MaxWalkSpeed = bUnderAiming ? AimWalkSpeed : BaseWalkSpeed;
+	}
+}
+
+void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
+{
+	bUnderAiming = bIsAiming;
+	if (CharacterEx)
+	{
+		CharacterEx->GetCharacterMovement()->MaxWalkSpeed = bUnderAiming ? AimWalkSpeed : BaseWalkSpeed;
+	}
+}
+
+
+void UCombatComponent::OnRep_EquippedWeapon()
+{
+	if (EquippedWeapon && CharacterEx)
+	{
+		//拾取武器后切换控制
+		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
+		CharacterEx->bUseControllerRotationYaw = true;
+	}
 }
 
 void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
@@ -54,4 +102,8 @@ void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
 	//SetOwner中的形参Owner这个函数，UE已经默认了进行属性复制
 	//UPROPERTY(ReplicatedUsing = OnRep_Owner)
 	EquippedWeapon->SetOwner(CharacterEx);
+
+	//拾取武器后切换控制
+	CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
+	CharacterEx->bUseControllerRotationYaw = true;
 }

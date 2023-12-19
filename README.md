@@ -706,7 +706,7 @@ void AWeaponParent::SetWeaponState(EWeaponState State)
 
 ## RPC的基本流程
 RPC相当于函数调用，只不过是在一个机器请求，另一个机器调用实现后的结果返回请求的机器
-1. RPC是双向的，但也要定义其可复制的属性为true
+1. RPC是双向的，但也要定义其可复制的属性为true，即与属性复制的1，2步操作相同
 2. RPC使用说明符UFUNCTION(Server/Client, [Reliable])
 ```c++
 	//RPC客户端调用，服务器执行，约定在函数名前加上Server
@@ -753,3 +753,78 @@ void AXCharacter::ServerEquipWeapon_Implementation()
 	}
 }
 ```
+
+# 装备武器动画
+一个动画实例只能访问对应机器上的变量，客户端的动画实例只能查询客户端的变量，而无法获取服务器上的变量，所以对于是否装备了武器，我们通过战斗组件中的装备武器变量是否为空来判断，那么这个值应当进行属性复制给客户端
+```c++
+//战斗组件.h
+//通过复制向客户端传递服务器的处理结果 EquippedWeapon
+virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+//装备上的武器实例
+//EquippedWeapon用来判断是否装备武器，从而切换动画，需要赋值给客户端
+UPROPERTY(Replicated ,VisibleAnywhere)
+	class AWeaponParent* EquippedWeapon;
+	
+//战斗组件.cpp
+void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
+	DOREPLIFETIME(UCombatComponent, bUnderAiming);
+}
+```
+
+# 瞄准状态
+同样所有逻辑都是运行在服务器上的，我们编写了瞄准的控制和动画蓝图，只会在服务器上有体现，所以为了客户端的动画能够播放，所以我们需要将瞄准状态的值属性复制给客户端
+```c++
+//战斗组件.h
+//瞄准状态
+UPROPERTY(Replicated, VisibleAnywhere)
+	bool bUnderAiming;
+```
+
+但之后又出现一个问题就是我们的瞄准只会出现在当前的客户端上，服务器和其他客户端不知道，这是因为属性复制是单向的，所以我们需要利用RPC来实现瞄准状态的获取，就需要我们在战斗组件中定义一个更改瞄准状态的函数，和一个RPC更改状态的函数，在其中设置瞄准状态的改变，从角色源码中调用。
+```c++
+//character.h
+void AXCharacter::RelaxToAimMode()
+{
+	if (CombatComp)
+	{
+		CombatComp->SetAiming(true);
+	}
+}
+
+void AXCharacter::AimToRelaxMode()
+{
+	if (CombatComp)
+	{
+		CombatComp->SetAiming(false);
+	}
+}
+
+//战斗组件.h
+//服务器的最终处理函数
+void SetAiming(bool)
+
+//RPC函数
+UFUNCTION(Server,Reliable)
+void ServerSetAiming(bool)
+
+//战斗组件.cpp
+void SetAiming(bool)
+{
+	//避免网络延迟
+	bAiming = bool;
+	if(!character->HasAuthority())
+	{
+		ServerSetAiming(bool)
+	}
+}
+void ServerSetAiming_Implementation(bool)
+{
+	bAiming = bool;
+}
+```
+这样的流程就是客户端调用服务器上的瞄准函数，服务器上该客户端角色的变量值发生改变，然后服务器将这个状态广播给其他所有客户端
+
+值得注意的是，由于网络延迟的原因，我们可以在调用之前先设置变量的改变，使得服务器可以提前做出响应。

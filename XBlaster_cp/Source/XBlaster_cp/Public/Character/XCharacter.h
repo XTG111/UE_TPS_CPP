@@ -43,6 +43,9 @@ protected:
 	void MoveRight(float value);
 	void LookUp(float value);
 	void Turn(float value);
+	void CrouchMode();
+	void RelaxToAimMode();
+	void AimToRelaxMode();
 	virtual void Jump() override;
 	virtual void StopJumping() override;
 	UPROPERTY(BlueprintReadOnly, Category = MoveFunc)
@@ -52,6 +55,12 @@ protected:
 
 	//装备武器
 	void EquipWeapon();
+
+	//瞄准偏移AO_Yaw AO_Pitch
+	void AimOffset(float DeltaTime);
+	float AO_Yaw;
+	float AO_Pitch;
+	FRotator StartingAimRotation;
 
 
 private:
@@ -81,10 +90,24 @@ private:
 		void ServerEquipWeapon();
 
 public:	
-	UPROPERTY(BlueprintReadOnly, Category = MoveFunc)
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
 		bool bUnderJump = false;
 
 	//将重叠的变量获取到，然后传给客户端
 	UFUNCTION()
 		void SetOverlappingWeapon(AWeaponParent* Weapon);
+
+	//设置是否装备，动画源码中通过调用这个函数，来设置是否装备了武器
+	UFUNCTION()
+		bool GetIsEquippedWeapon();
+
+	//获取是否瞄准
+	UFUNCTION()
+		bool GetIsAiming();
+
+	UFUNCTION()
+		float GetAOYawToAnim() const;
+
+	UFUNCTION()
+		float GetAOPitchToAnim() const;
 };

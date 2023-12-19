@@ -12,6 +12,7 @@
 #include "Net/UnrealNetWork.h"
 #include "Weapon/WeaponParent.h"
 #include "BlasterComponent/CombatComponent.h"
+#include "Components/CapsuleComponent.h"
 
 
 // Sets default values
@@ -28,6 +29,10 @@ AXCharacter::AXCharacter()
 	CameraComp->SetupAttachment(SpringArmComp,USpringArmComponent::SocketName);
 	CameraComp->bUsePawnControlRotation = false;
 
+	//消除胶囊体组件对于相机的碰撞
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
 
@@ -39,6 +44,11 @@ AXCharacter::AXCharacter()
 	CombatComp = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComp"));
 	//战斗控制，需要通过服务器复制给客户端
 	CombatComp->SetIsReplicated(true);
+
+	//控制是否蹲下的bool值，这是UE自己定义的,开启后才能有下蹲功能
+	//	/** Returns true if component can crouch */
+	//FORCEINLINE bool CanEverCrouch() const { return NavAgentProps.bCanCrouch; }
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
 }
 
 void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -47,6 +57,7 @@ void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 
 	//复制我们需要的变量生命周期,只复制到当前客户端
 	DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon,COND_OwnerOnly);
+	DOREPLIFETIME(AXCharacter, bUnderJump);
 }
 
 //初始化组件中的值
@@ -74,6 +85,7 @@ void AXCharacter::BeginPlay()
 void AXCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	AimOffset(DeltaTime);
 }
 
 // Called to bind functionality to input
@@ -87,6 +99,9 @@ void AXCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AXCharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &AXCharacter::StopJumping);
 	PlayerInputComponent->BindAction("Equip", IE_Pressed, this, &AXCharacter::EquipWeapon);
+	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &AXCharacter::CrouchMode);
+	PlayerInputComponent->BindAction("Aim", IE_Pressed, this, &AXCharacter::RelaxToAimMode);
+	PlayerInputComponent->BindAction("Aim", IE_Released, this, &AXCharacter::AimToRelaxMode);
 }
 
 void AXCharacter::MoveForward(float value)
@@ -119,6 +134,34 @@ void AXCharacter::Turn(float value)
 	AddControllerPitchInput(value);
 }
 
+void AXCharacter::CrouchMode()
+{
+	if (bIsCrouched)
+	{
+		UnCrouch();
+	}
+	else
+	{
+		Crouch();
+	}
+}
+
+void AXCharacter::RelaxToAimMode()
+{
+	if (CombatComp)
+	{
+		CombatComp->SetAiming(true);
+	}
+}
+
+void AXCharacter::AimToRelaxMode()
+{
+	if (CombatComp)
+	{
+		CombatComp->SetAiming(false);
+	}
+}
+
 void AXCharacter::Jump()
 {
 	Super::Jump();
@@ -148,6 +191,7 @@ void AXCharacter::EquipWeapon()
 		}
 	}
 }
+
 //在客户端上的Actor执行
 void AXCharacter::ServerEquipWeapon_Implementation()
 {
@@ -171,7 +215,6 @@ void AXCharacter::OnRep_OverlappingWeapon(AWeaponParent* LastWeapon)
 	}
 }
 
-
 //服务器调用
 void AXCharacter::SetOverlappingWeapon(AWeaponParent* Weapon)
 {
@@ -194,6 +237,58 @@ void AXCharacter::SetOverlappingWeapon(AWeaponParent* Weapon)
 			OverlappingWeapon->ShowPickUpWidget(true);
 		}
 	}
+}
+
+void AXCharacter::AimOffset(float DeltaTime)
+{
+	if (CombatComp && CombatComp->EquippedWeapon == nullptr)
+	{
+		return;
+	}
+	FVector Velocity = GetVelocity();
+	Velocity.Z = 0.0f;
+	float Speed = Velocity.Size();
+	bool bJump = bUnderJump;
+	bool bIsInAir = GetCharacterMovement()->IsFalling();
+
+	if (Speed > 0.0f || bJump || bIsInAir)
+	{
+		bUseControllerRotationYaw = false;
+		StartingAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
+		AO_Yaw = 0.0f;
+	}
+
+	if (Speed == 0.0f && !bJump && !bIsInAir)
+	{
+		bUseControllerRotationYaw = false;
+		FRotator CurrentAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
+		//AO_Yaw的改变就是StartingAimRotation到CurrentAimRotation
+		FRotator DeltaAimRotation = UKismetMathLibrary::NormalizedDeltaRotator(CurrentAimRotation, StartingAimRotation);
+		AO_Yaw = FMath::FInterpTo(AO_Yaw, DeltaAimRotation.Yaw, DeltaTime, 5.f);
+	}
+
+	//Pitch的设置
+	AO_Pitch = GetBaseAimRotation().Pitch;
+}
+
+bool AXCharacter::GetIsEquippedWeapon()
+{
+	return (CombatComp && CombatComp->EquippedWeapon);
+}
+
+bool AXCharacter::GetIsAiming()
+{
+	return (CombatComp && CombatComp->bUnderAiming);
+}
+
+float AXCharacter::GetAOYawToAnim() const
+{
+	return AO_Yaw;
+}
+
+float AXCharacter::GetAOPitchToAnim() const
+{
+	return AO_Pitch;
 }
 
 
