@@ -4,6 +4,7 @@
 #include "Character/XCharacterAnimInstance.h"
 #include "Character/XCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Weapon/WeaponParent.h"
 #include <Kismet/KismetMathLibrary.h>
 
 void UXCharacterAnimInstance::NativeInitializeAnimation()
@@ -46,6 +47,7 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 
 	//是否装备武器
 	bWeaponEquipped = XCharacter->GetIsEquippedWeapon();
+	EquippedWeapon = XCharacter->GetEquippedWeapon();
 
 	//是否蹲下
 	bIsCrouch = XCharacter->bIsCrouched;
@@ -72,4 +74,19 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	//AimOffset
 	AO_Yaw = XCharacter->GetAOYawToAnim();
 	AO_Pitch = XCharacter->GetAOPitchToAnim();
+
+	//瞄准偏移实现转向
+	TurningInPlace = XCharacter->GetTurninigInPlace();
+
+	//左手IK
+	if (bWeaponEquipped && EquippedWeapon && EquippedWeapon->WeaponMesh && XCharacter->GetMesh())
+	{
+		//获取socket位置
+		LeftHandTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("LeftHandSocket"), ERelativeTransformSpace::RTS_World);
+		FVector OutPosition;
+		FRotator OutRotation;
+		XCharacter->GetMesh()->TransformToBoneSpace(FName("hand_r"), LeftHandTransform.GetLocation(), FRotator::ZeroRotator, OutPosition, OutRotation);
+		LeftHandTransform.SetLocation(OutPosition);
+		LeftHandTransform.SetRotation(FQuat(OutRotation));
+	}
 }

@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Weapon/WeaponParent.h"
 #include "BlasterComponent/CombatComponent.h"
+#include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
 #include "XCharacter.generated.h"
 
 
@@ -58,9 +59,22 @@ protected:
 
 	//瞄准偏移AO_Yaw AO_Pitch
 	void AimOffset(float DeltaTime);
-	float AO_Yaw;
+	UPROPERTY(BlueprintReadOnly,Replicated)
+		float AO_Yaw;
+	UFUNCTION(Server, Reliable)
+		void AOYawTrans(float DeltaTime);
 	float AO_Pitch;
 	FRotator StartingAimRotation;
+
+	//瞄准偏移下的状态控制
+	UPROPERTY(Replicated)
+		ETuringInPlace TurningInPlace;
+
+	//用于设置转动时根骨骼的转动 利用此值进行插值求得转动时的AO_Yaw
+		float InterpAOYaw;
+	////获取Yaw的角度变换，来修改状态
+	//UFUNCTION()
+	//	void TurnInPlace(float DeltaTime);
 
 
 private:
@@ -105,9 +119,16 @@ public:
 	UFUNCTION()
 		bool GetIsAiming();
 
+	//给动画蓝图传入瞄准偏移的值
 	UFUNCTION()
 		float GetAOYawToAnim() const;
-
 	UFUNCTION()
 		float GetAOPitchToAnim() const;
+
+	//给动画蓝图传入当前装备的武器
+	UFUNCTION()
+		AWeaponParent* GetEquippedWeapon();
+
+	//设置获取状态值到动画蓝图
+	ETuringInPlace GetTurninigInPlace() const;
 };

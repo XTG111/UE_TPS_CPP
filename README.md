@@ -828,3 +828,46 @@ void ServerSetAiming_Implementation(bool)
 这样的流程就是客户端调用服务器上的瞄准函数，服务器上该客户端角色的变量值发生改变，然后服务器将这个状态广播给其他所有客户端
 
 值得注意的是，由于网络延迟的原因，我们可以在调用之前先设置变量的改变，使得服务器可以提前做出响应。
+
+## AimOffset
+客户端向服务器发送pitch旋转值的时候，会进行压缩，导致负数变为无符号的正数，使得体现在服务器上的AO出现问题，进而导致其他客户端的出现问题
+```c++
+//CharacterMovement.cpp
+void FSavedMove_Character::GetPackedAngles(uint32& YawAndPitchPack, uint8& RollPack) const
+{
+	// Compress rotation down to 5 bytes
+	YawAndPitchPack = UCharacterMovementComponent::PackYawAndPitchTo32(SavedControlRotation.Yaw, SavedControlRotation.Pitch);
+	RollPack = FRotator::CompressAxisToByte(SavedControlRotation.Roll);
+}
+
+//Rotator.h
+FORCEINLINE uint16 FRotator::CompressAxisToShort( float Angle )
+{
+	// map [0->360) to [0->65536) and mask off any winding
+	return FMath::RoundToInt(Angle * 65536.f / 360.f) & 0xFFFF;
+}
+```
+解决方法就是利用映射将270-\>360变为-90-\>\0，需要注意的是，只在不是本地的机器上进行转换，因为本地客户端是正确的响应
+```c++
+if (AO_Pitch > 90.f && !IsLocallyControlled())
+	{
+		//客户端-90,0会被压缩为360,270，进行强制转换
+		FVector2D InRange(270.f, 360.f);
+		FVector2D OutRange(-90.f, 0.f);
+		AO_Pitch = FMath::GetMappedRangeValueClamped(InRange, OutRange, AO_Pitch);
+	}
+}
+```
+
+# FABRIK
+需要在代码中设置IK的变换，通过添加插槽，设置这个插槽的变换来实现的GetSocketTransform，之后需要通过目标骨骼的限制来获取这个变换的具体位置TransformToBoneSpace。
+```c++
+	//获取插槽的变换
+	LeftHandTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("LeftHandSocket"), ERelativeTransformSpace::RTS_World);
+	FVector OutPosition;
+	FRotator OutRotation;
+	//设置基于目标骨骼的变换
+	XCharacter->GetMesh()->TransformToBoneSpace(FName("hand_r"), LeftHandTransform.GetLocation(), FRotator::ZeroRotator, OutPosition, OutRotation);
+	LeftHandTransform.SetLocation(OutPosition);
+	LeftHandTransform.SetRotation(FQuat(OutRotation));
+```

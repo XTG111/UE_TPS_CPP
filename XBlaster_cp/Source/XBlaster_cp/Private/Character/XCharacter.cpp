@@ -14,7 +14,6 @@
 #include "BlasterComponent/CombatComponent.h"
 #include "Components/CapsuleComponent.h"
 
-
 // Sets default values
 AXCharacter::AXCharacter()
 {
@@ -49,6 +48,9 @@ AXCharacter::AXCharacter()
 	//	/** Returns true if component can crouch */
 	//FORCEINLINE bool CanEverCrouch() const { return NavAgentProps.bCanCrouch; }
 	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
+
+	//默认旋转是没有旋转
+	TurningInPlace = ETuringInPlace::ETIP_NoTurning;
 }
 
 void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -58,6 +60,8 @@ void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 	//复制我们需要的变量生命周期,只复制到当前客户端
 	DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon,COND_OwnerOnly);
 	DOREPLIFETIME(AXCharacter, bUnderJump);
+	DOREPLIFETIME(AXCharacter, AO_Yaw);
+	DOREPLIFETIME(AXCharacter, TurningInPlace);
 }
 
 //初始化组件中的值
@@ -181,14 +185,7 @@ void AXCharacter::EquipWeapon()
 {
 	if (CombatComp)
 	{
-		if (HasAuthority())
-		{
-			CombatComp->EquipWeapon(OverlappingWeapon);
-		}
-		else
-		{
-			ServerEquipWeapon();
-		}
+		ServerEquipWeapon();
 	}
 }
 
@@ -240,6 +237,22 @@ void AXCharacter::SetOverlappingWeapon(AWeaponParent* Weapon)
 }
 
 void AXCharacter::AimOffset(float DeltaTime)
+{	AOYawTrans(DeltaTime);
+
+	//Pitch的设置
+	AO_Pitch = GetBaseAimRotation().Pitch;
+
+	//修正传送过程中的角度压缩
+	if (AO_Pitch > 90.f && !IsLocallyControlled())
+	{
+		//客户端-90,0会被压缩为360,270，进行强制转换
+		FVector2D InRange(270.f, 360.f);
+		FVector2D OutRange(-90.f, 0.f);
+		AO_Pitch = FMath::GetMappedRangeValueClamped(InRange, OutRange, AO_Pitch);
+	}
+}
+
+void AXCharacter::AOYawTrans_Implementation(float DeltaTime)
 {
 	if (CombatComp && CombatComp->EquippedWeapon == nullptr)
 	{
@@ -253,9 +266,10 @@ void AXCharacter::AimOffset(float DeltaTime)
 
 	if (Speed > 0.0f || bJump || bIsInAir)
 	{
-		bUseControllerRotationYaw = false;
+		bUseControllerRotationYaw = true;
 		StartingAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
 		AO_Yaw = 0.0f;
+		TurningInPlace = ETuringInPlace::ETIP_NoTurning;
 	}
 
 	if (Speed == 0.0f && !bJump && !bIsInAir)
@@ -264,12 +278,44 @@ void AXCharacter::AimOffset(float DeltaTime)
 		FRotator CurrentAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
 		//AO_Yaw的改变就是StartingAimRotation到CurrentAimRotation
 		FRotator DeltaAimRotation = UKismetMathLibrary::NormalizedDeltaRotator(CurrentAimRotation, StartingAimRotation);
-		AO_Yaw = FMath::FInterpTo(AO_Yaw, DeltaAimRotation.Yaw, DeltaTime, 5.f);
-	}
+		/*AO_Yaw = FMath::FInterpTo(AO_Yaw, DeltaAimRotation.Yaw, DeltaTime, 5.f);*/
+		AO_Yaw = DeltaAimRotation.Yaw;
 
-	//Pitch的设置
-	AO_Pitch = GetBaseAimRotation().Pitch;
+		//初始化插值量
+		//if (TurningInPlace == ETuringInPlace::ETIP_NoTurning)
+		//{
+		//	InterpAOYaw = AO_Yaw;
+		//}
+
+		//TurnInPlace(DeltaTime);
+	}
 }
+
+////当在原地时 Yaw的偏转到90，-90时修改状态
+//void AXCharacter::TurnInPlace(float DeltaTime)
+//{
+//	if (AO_Yaw > 90.f)
+//	{
+//		TurningInPlace = ETuringInPlace::ETIP_Right;
+//	}
+//	else if (AO_Yaw < -90.f)
+//	{
+//		TurningInPlace = ETuringInPlace::ETIP_Left;
+//	}
+//
+//	//开始转动，从当前角度插值到0，实现转向，因为转向后的方向变为0
+//	if (TurningInPlace != ETuringInPlace::ETIP_NoTurning)
+//	{
+//		InterpAOYaw = FMath::FInterpTo(InterpAOYaw, 0.f, DeltaTime, 5.f);
+//		AO_Yaw = InterpAOYaw;
+//		//如果AO_Yaw的变化不大，重置状态和初始朝向
+//		if (FMath::Abs(AO_Yaw) < 15.f)
+//		{
+//			TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+//			StartingAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
+//		}
+//	}
+//}
 
 bool AXCharacter::GetIsEquippedWeapon()
 {
@@ -289,6 +335,20 @@ float AXCharacter::GetAOYawToAnim() const
 float AXCharacter::GetAOPitchToAnim() const
 {
 	return AO_Pitch;
+}
+
+AWeaponParent* AXCharacter::GetEquippedWeapon()
+{
+	if (CombatComp && CombatComp->EquippedWeapon)
+	{
+		return CombatComp->EquippedWeapon;
+	}
+	return nullptr;
+}
+
+ETuringInPlace AXCharacter::GetTurninigInPlace() const
+{
+	return TurningInPlace;
 }
 
 

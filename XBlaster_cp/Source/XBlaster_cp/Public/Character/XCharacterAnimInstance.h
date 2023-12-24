@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
 #include "XCharacterAnimInstance.generated.h"
 
 /**
@@ -45,6 +46,8 @@ private:
 	//装备武器状态判断，播放装备武器的动画
 	UPROPERTY(BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
 		bool bWeaponEquipped;
+	UPROPERTY(BlueprintReadOnly, Category = Combat, meta = (AllowPrivateAccess = "true"))
+		class AWeaponParent* EquippedWeapon;
 
 	//是否蹲下
 	UPROPERTY(BlueprintReadOnly, Category = MoveMent, meta = (AllowPrivateAccess = "true"))
@@ -68,4 +71,12 @@ private:
 		float AO_Yaw;
 	UPROPERTY(BlueprintReadOnly, Category = AimOffset, meta = (AllowPrivateAccess = "true"))
 		float AO_Pitch;
+
+	//左手IK控制
+	UPROPERTY(BlueprintReadOnly, Category = LeftIK, meta = (AllowPrivateAccess = "true"))
+		FTransform LeftHandTransform;
+
+	//瞄准偏移实现转向
+	UPROPERTY(BlueprintReadOnly, Category = AOTurning, meta = (AllowPrivateAccess = "true"))
+		ETuringInPlace TurningInPlace;
 };
