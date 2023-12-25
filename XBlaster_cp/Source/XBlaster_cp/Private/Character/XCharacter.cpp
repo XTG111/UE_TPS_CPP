@@ -51,6 +51,10 @@ AXCharacter::AXCharacter()
 
 	//默认旋转是没有旋转
 	TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+
+	//网络刷新
+	NetUpdateFrequency = 66.f;
+	MinNetUpdateFrequency = 33.f;
 }
 
 void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -168,8 +172,15 @@ void AXCharacter::AimToRelaxMode()
 
 void AXCharacter::Jump()
 {
-	Super::Jump();
-	bUnderJump = true;
+	if(bIsCrouched)
+	{
+		UnCrouch();
+	}
+	else
+	{
+		Super::Jump();
+		bUnderJump = true;
+	}
 }
 
 void AXCharacter::StopJumping()
@@ -274,7 +285,7 @@ void AXCharacter::AOYawTrans_Implementation(float DeltaTime)
 
 	if (Speed == 0.0f && !bJump && !bIsInAir)
 	{
-		bUseControllerRotationYaw = false;
+		bUseControllerRotationYaw = true;
 		FRotator CurrentAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
 		//AO_Yaw的改变就是StartingAimRotation到CurrentAimRotation
 		FRotator DeltaAimRotation = UKismetMathLibrary::NormalizedDeltaRotator(CurrentAimRotation, StartingAimRotation);
@@ -282,40 +293,41 @@ void AXCharacter::AOYawTrans_Implementation(float DeltaTime)
 		AO_Yaw = DeltaAimRotation.Yaw;
 
 		//初始化插值量
-		//if (TurningInPlace == ETuringInPlace::ETIP_NoTurning)
-		//{
-		//	InterpAOYaw = AO_Yaw;
-		//}
+		if (TurningInPlace == ETuringInPlace::ETIP_NoTurning)
+		{
+			InterpAOYaw = AO_Yaw;
+		}
 
-		//TurnInPlace(DeltaTime);
+		TurnInPlace(DeltaTime);
 	}
 }
 
 ////当在原地时 Yaw的偏转到90，-90时修改状态
-//void AXCharacter::TurnInPlace(float DeltaTime)
-//{
-//	if (AO_Yaw > 90.f)
-//	{
-//		TurningInPlace = ETuringInPlace::ETIP_Right;
-//	}
-//	else if (AO_Yaw < -90.f)
-//	{
-//		TurningInPlace = ETuringInPlace::ETIP_Left;
-//	}
-//
-//	//开始转动，从当前角度插值到0，实现转向，因为转向后的方向变为0
-//	if (TurningInPlace != ETuringInPlace::ETIP_NoTurning)
-//	{
-//		InterpAOYaw = FMath::FInterpTo(InterpAOYaw, 0.f, DeltaTime, 5.f);
-//		AO_Yaw = InterpAOYaw;
-//		//如果AO_Yaw的变化不大，重置状态和初始朝向
-//		if (FMath::Abs(AO_Yaw) < 15.f)
-//		{
-//			TurningInPlace = ETuringInPlace::ETIP_NoTurning;
-//			StartingAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
-//		}
-//	}
-//}
+void AXCharacter::TurnInPlace(float DeltaTime)
+{
+//	UE_LOG(LogTemp, Warning, TEXT("AO_YAW:%f"), AO_Yaw);
+	if (AO_Yaw > 90.f)
+	{
+		TurningInPlace = ETuringInPlace::ETIP_Right;
+	}
+	else if (AO_Yaw < -90.f)
+	{
+		TurningInPlace = ETuringInPlace::ETIP_Left;
+	}
+
+	//开始转动，从当前角度插值到0，实现转向，因为转向后的方向变为0
+	if (TurningInPlace != ETuringInPlace::ETIP_NoTurning)
+	{
+		InterpAOYaw = FMath::FInterpTo(InterpAOYaw, 0.f, DeltaTime, 5.f);
+		AO_Yaw = InterpAOYaw;
+		//如果AO_Yaw的变化不大，重置状态和初始朝向
+		if (FMath::Abs(AO_Yaw) < 15.f)
+		{
+			TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+			StartingAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
+		}
+	}
+}
 
 bool AXCharacter::GetIsEquippedWeapon()
 {

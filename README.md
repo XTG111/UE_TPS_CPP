@@ -871,3 +871,21 @@ if (AO_Pitch > 90.f && !IsLocallyControlled())
 	LeftHandTransform.SetLocation(OutPosition);
 	LeftHandTransform.SetRotation(FQuat(OutRotation));
 ```
+
+# 网络更新频率
+转身更平滑，开启rotate root bone的interp result
+
+角色蓝图中的replication选项：net update frequency
+```.ini
+在默认引擎设置中，设置服务器最大刷新率，即服务器向客户端传输的最大更新值
+[/Script/OnlineSubsystemUtils.IpNetDriver]
+NetServerMaxTickRate = 60
+```
+
+# 动画滑步的简单修复
+通过改变动画，增加混合空间的插值量
+添加音效：sync markers,在混合空间中可以同步，各动画的声音
+
+# 射击设计
+1. projectile方式
+2. 射线检测方式

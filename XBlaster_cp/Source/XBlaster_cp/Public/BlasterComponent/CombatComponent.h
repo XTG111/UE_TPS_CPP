@@ -62,6 +62,4 @@ private:
 
 public:	
 	void EquipWeapon(class AWeaponParent* WeaponToEquip);
-
-		
 };

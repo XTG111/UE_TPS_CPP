@@ -73,8 +73,8 @@ protected:
 	//用于设置转动时根骨骼的转动 利用此值进行插值求得转动时的AO_Yaw
 		float InterpAOYaw;
 	////获取Yaw的角度变换，来修改状态
-	//UFUNCTION()
-	//	void TurnInPlace(float DeltaTime);
+	UFUNCTION()
+		void TurnInPlace(float DeltaTime);
 
 
 private:
