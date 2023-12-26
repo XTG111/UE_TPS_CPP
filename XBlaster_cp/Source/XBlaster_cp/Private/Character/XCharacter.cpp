@@ -13,6 +13,7 @@
 #include "Weapon/WeaponParent.h"
 #include "BlasterComponent/CombatComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Character/XCharacterAnimInstance.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -110,6 +111,8 @@ void AXCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &AXCharacter::CrouchMode);
 	PlayerInputComponent->BindAction("Aim", IE_Pressed, this, &AXCharacter::RelaxToAimMode);
 	PlayerInputComponent->BindAction("Aim", IE_Released, this, &AXCharacter::AimToRelaxMode);
+	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AXCharacter::Fireing);
+	PlayerInputComponent->BindAction("Fire", IE_Released, this, &AXCharacter::ReFired);
 }
 
 void AXCharacter::MoveForward(float value)
@@ -329,6 +332,22 @@ void AXCharacter::TurnInPlace(float DeltaTime)
 	}
 }
 
+void AXCharacter::Fireing()
+{
+	if (CombatComp)
+	{
+		CombatComp->IsFired(true);
+	}
+}
+
+void AXCharacter::ReFired()
+{
+	if (CombatComp)
+	{
+		CombatComp->IsFired(false);
+	}
+}
+
 bool AXCharacter::GetIsEquippedWeapon()
 {
 	return (CombatComp && CombatComp->EquippedWeapon);
@@ -361,6 +380,45 @@ AWeaponParent* AXCharacter::GetEquippedWeapon()
 ETuringInPlace AXCharacter::GetTurninigInPlace() const
 {
 	return TurningInPlace;
+}
+
+void AXCharacter::PlayFireMontage(bool bAiming)
+{
+	if (CombatComp == nullptr || CombatComp->EquippedWeapon == nullptr)
+	{
+		return;
+	}
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance)
+	{
+		if (bAiming && AimFireMontage)
+		{
+			//PlayAnimMontage(AimFireMontage);
+			AnimInstance->Montage_Play(AimFireMontage);
+			//AnimInstance->Montage_JumpToSection("AimFire");
+		}
+		else if (!bAiming && EquipFireMontage)
+		{
+			//PlayAnimMontage(EquipFireMontage);
+			AnimInstance->Montage_Play(EquipFireMontage);
+			//AnimInstance->Montage_JumpToSection("FireEquip");
+		}
+	}
+	if (!CombatComp->bFired)
+	{
+		if (bAiming && AimFireMontage)
+		{
+			//PlayAnimMontage(AimFireMontage);
+			AnimInstance->Montage_Stop(-1,AimFireMontage);
+			//AnimInstance->Montage_JumpToSection("AimFire");
+		}
+		else if (!bAiming && EquipFireMontage)
+		{
+			//PlayAnimMontage(EquipFireMontage);
+			AnimInstance->Montage_Stop(-1,EquipFireMontage);
+			//AnimInstance->Montage_JumpToSection("FireEquip");
+		}
+	}
 }
 
 

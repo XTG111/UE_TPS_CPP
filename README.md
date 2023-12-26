@@ -889,3 +889,11 @@ NetServerMaxTickRate = 60
 # 射击设计
 1. projectile方式
 2. 射线检测方式
+
+# 射击应用RPC
+rep通知只在值发生改变时，进行函数逻辑的执行。
+选择Multicast RPC进行多个客户端的通知
+在服务器上运行Multicast会在服务器和它所属的所有客户端上运行
+在客户端上运行Multicast只会在该客户端上运行。
+所以我们定义和声明的Multicast函数，该函数的具体调用是在我们的Server RPC函数内
+具体实现功能操作函数->调用ServerRPC函数->调用Multicast函数->内部写上具体逻辑

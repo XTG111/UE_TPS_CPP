@@ -6,6 +6,8 @@
 #include "Components/WidgetComponent.h"
 #include "Character/XCharacter.h"
 #include "Net/UnrealNetWork.h"
+#include "Animation/AnimationAsset.h"
+#include "Components/SkeletalMeshComponent.h"
 
 // Sets default values
 AWeaponParent::AWeaponParent()
@@ -122,6 +124,14 @@ void AWeaponParent::ShowPickUpWidget(bool bShowWidget)
 		PickUpWidgetComp->SetVisibility(bShowWidget);
 	}
 	
+}
+
+void AWeaponParent::Fire(const FVector& HitTarget)
+{
+	if (FireAnimation)
+	{
+		WeaponMesh->PlayAnimation(FireAnimation, true);
+	}
 }
 
 void AWeaponParent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)

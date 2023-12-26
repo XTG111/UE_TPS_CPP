@@ -8,13 +8,15 @@
 #include "Components/SphereComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetWork.h"
+#include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 
 	// ...
 
@@ -26,6 +28,8 @@ UCombatComponent::UCombatComponent()
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	FHitResult HitResult;
+	TraceUnderCrosshairs(HitResult);
 
 	// ...
 }
@@ -80,6 +84,71 @@ void UCombatComponent::OnRep_EquippedWeapon()
 		//拾取武器后切换控制
 		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
 		CharacterEx->bUseControllerRotationYaw = true;
+	}
+}
+
+void UCombatComponent::IsFired(bool bPressed)
+{
+	bFired = bPressed;
+	ServerFire();
+}
+
+//RPC,如果不通过repNotify进行值改变操作，其他机器上不能观测结果
+void UCombatComponent::ServerFire_Implementation()
+{
+	MulticastFire();
+}
+
+void UCombatComponent::MulticastFire_Implementation()
+{
+	if (EquippedWeapon == nullptr) return;
+	//UE_LOG(LogTemp, Warning, TEXT("AO_YAW:%d"), bFired);
+	if (CharacterEx)
+	{
+		CharacterEx->PlayFireMontage(bUnderAiming);
+		if (bFired)
+		{
+			EquippedWeapon->Fire(HitTarget);
+		}
+		else
+		{
+			EquippedWeapon->WeaponMesh->Stop();
+		}
+	}
+}
+
+void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
+{
+	//视口大小
+	FVector2D ViewportSize;
+	if (GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->GetViewportSize(ViewportSize);
+	}
+
+	//准星位置屏幕中心坐标 只是视口坐标
+	FVector2D CrosshairLocation(ViewportSize.X / 2.f, ViewportSize.Y / 2.f);
+
+	//需要转换到世界坐标
+	FVector CrosshairWorldPosition;
+	FVector CrosshairWorldDirection;
+	bool bScreenToWorld = UGameplayStatics::DeprojectScreenToWorld(UGameplayStatics::GetPlayerController(this, 0), CrosshairLocation, CrosshairWorldPosition, CrosshairWorldDirection);
+	if (bScreenToWorld)
+	{
+		//射线检测起点和终点
+		FVector Start = CrosshairWorldPosition;
+		FVector End = Start + CrosshairWorldDirection * 50000.0f;
+
+		bool IsHit = GetWorld()->LineTraceSingleByChannel(TraceHitResult, Start, End, ECollisionChannel::ECC_Visibility);
+		if (!IsHit)
+		{
+			TraceHitResult.ImpactPoint = End;
+		}
+		else
+		{
+			DrawDebugSphere(GetWorld(), TraceHitResult.ImpactPoint, 12.f, 12, FColor::Red);
+		}
+		HitTarget = TraceHitResult.ImpactPoint;
 	}
 }
 

@@ -40,10 +40,24 @@ protected:
 	UFUNCTION()
 		void OnRep_EquippedWeapon();
 
+	//攻击
+	void IsFired(bool bPressed);
+
+	//RPC传递射击状态
+	UFUNCTION(Server, Reliable)
+		void ServerFire();
+
+	//Multicast RPC
+	UFUNCTION(NetMulticast, Reliable)
+		void MulticastFire();
+
+	//linetrace检测设计点
+	void TraceUnderCrosshairs(FHitResult& TraceHitResult);
+
 private:
 	//角色实例
 	UPROPERTY(VisibleAnywhere)
-	class AXCharacter* CharacterEx;
+		class AXCharacter* CharacterEx;
 
 
 	//装备上的武器实例
@@ -59,6 +73,11 @@ private:
 		float BaseWalkSpeed;
 	UPROPERTY(VisibleAnywhere)
 		float AimWalkSpeed;
+
+	//攻击
+	bool bFired = false;
+	//目标攻击点
+	FVector HitTarget;
 
 public:	
 	void EquipWeapon(class AWeaponParent* WeaponToEquip);

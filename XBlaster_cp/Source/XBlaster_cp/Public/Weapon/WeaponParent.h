@@ -67,8 +67,14 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Weapon")
 		class UWidgetComponent* PickUpWidgetComp;
 
+	UPROPERTY(EditAnywhere,Category = "Weapon Properties")
+		class UAnimationAsset* FireAnimation;
+
 	//是否显示UI
 	void ShowPickUpWidget(bool bShowWidget);
+
+	//用于开枪的控制,可以在子类覆盖
+	virtual void Fire(const FVector& HitTarget);
 
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点

@@ -76,6 +76,15 @@ protected:
 	UFUNCTION()
 		void TurnInPlace(float DeltaTime);
 
+	//攻击
+	void Fireing();
+	void ReFired();
+	//蒙太奇动画
+	UPROPERTY(EditAnywhere, Category = Combat)
+		class UAnimMontage* EquipFireMontage;
+	UPROPERTY(EditAnywhere, Category = Combat)
+		class UAnimMontage* AimFireMontage;
+
 
 private:
 	UPROPERTY(VisibleAnywhere, Category= Camera)
@@ -131,4 +140,6 @@ public:
 
 	//设置获取状态值到动画蓝图
 	ETuringInPlace GetTurninigInPlace() const;
+
+	void PlayFireMontage(bool bAiming);
 };
