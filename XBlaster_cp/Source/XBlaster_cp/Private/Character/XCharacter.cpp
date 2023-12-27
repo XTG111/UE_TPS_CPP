@@ -199,7 +199,9 @@ void AXCharacter::EquipWeapon()
 {
 	if (CombatComp)
 	{
+
 		ServerEquipWeapon();
+
 	}
 }
 
@@ -251,7 +253,9 @@ void AXCharacter::SetOverlappingWeapon(AWeaponParent* Weapon)
 }
 
 void AXCharacter::AimOffset(float DeltaTime)
-{	AOYawTrans(DeltaTime);
+{	
+		AOYawTrans(DeltaTime);
+
 
 	//PitchµÄÉèÖÃ
 	AO_Pitch = GetBaseAimRotation().Pitch;
@@ -350,6 +354,10 @@ void AXCharacter::ReFired()
 
 bool AXCharacter::GetIsEquippedWeapon()
 {
+	//if (HasAuthority() && !IsLocallyControlled())
+	//{
+	//	UE_LOG(LogTemp, Warning, TEXT("BWeaponed:%d"), GetIsEquippedWeapon());
+	//}
 	return (CombatComp && CombatComp->EquippedWeapon);
 }
 
@@ -391,33 +399,14 @@ void AXCharacter::PlayFireMontage(bool bAiming)
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance)
 	{
-		if (bAiming && AimFireMontage)
-		{
-			//PlayAnimMontage(AimFireMontage);
-			AnimInstance->Montage_Play(AimFireMontage);
-			//AnimInstance->Montage_JumpToSection("AimFire");
-		}
-		else if (!bAiming && EquipFireMontage)
-		{
-			//PlayAnimMontage(EquipFireMontage);
-			AnimInstance->Montage_Play(EquipFireMontage);
-			//AnimInstance->Montage_JumpToSection("FireEquip");
-		}
+		AnimInstance->Montage_Play(FireMontage);
+		FName SectionName;
+		SectionName = bAiming ? FName("AimFire") : FName("FireEquip");
+		AnimInstance->Montage_JumpToSection(SectionName);
 	}
 	if (!CombatComp->bFired)
 	{
-		if (bAiming && AimFireMontage)
-		{
-			//PlayAnimMontage(AimFireMontage);
-			AnimInstance->Montage_Stop(-1,AimFireMontage);
-			//AnimInstance->Montage_JumpToSection("AimFire");
-		}
-		else if (!bAiming && EquipFireMontage)
-		{
-			//PlayAnimMontage(EquipFireMontage);
-			AnimInstance->Montage_Stop(-1,EquipFireMontage);
-			//AnimInstance->Montage_JumpToSection("FireEquip");
-		}
+		AnimInstance->Montage_Stop(-1, FireMontage);
 	}
 }
 

@@ -45,11 +45,11 @@ protected:
 
 	//RPC传递射击状态
 	UFUNCTION(Server, Reliable)
-		void ServerFire();
+		void ServerFire(bool bPressed);
 
 	//Multicast RPC
 	UFUNCTION(NetMulticast, Reliable)
-		void MulticastFire();
+		void MulticastFire(bool bPressed);
 
 	//linetrace检测设计点
 	void TraceUnderCrosshairs(FHitResult& TraceHitResult);
@@ -75,7 +75,8 @@ private:
 		float AimWalkSpeed;
 
 	//攻击
-	bool bFired = false;
+	UPROPERTY(Replicated)
+		bool bFired = false;
 	//目标攻击点
 	FVector HitTarget;
 

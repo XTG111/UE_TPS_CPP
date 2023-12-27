@@ -81,9 +81,7 @@ protected:
 	void ReFired();
 	//ÃÉÌ«Ææ¶¯»­
 	UPROPERTY(EditAnywhere, Category = Combat)
-		class UAnimMontage* EquipFireMontage;
-	UPROPERTY(EditAnywhere, Category = Combat)
-		class UAnimMontage* AimFireMontage;
+		class UAnimMontage* FireMontage;
 
 
 private:

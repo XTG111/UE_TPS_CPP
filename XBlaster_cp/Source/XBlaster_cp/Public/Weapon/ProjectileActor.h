@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+
 #include "ProjectileActor.generated.h"
 
 UCLASS()
@@ -27,5 +28,8 @@ public:
 
 	UPROPERTY(EditAnywhere)
 		class USphereComponent* CollisionSphere;
+
+	UPROPERTY(VisibleAnywhere)
+		class UProjectileMovementComponent* ProjectileMovementComp;
 
 };

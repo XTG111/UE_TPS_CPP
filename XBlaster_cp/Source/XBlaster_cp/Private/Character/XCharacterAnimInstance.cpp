@@ -81,6 +81,10 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	//左手IK
 	if (bWeaponEquipped && EquippedWeapon && EquippedWeapon->WeaponMesh && XCharacter->GetMesh())
 	{
+		//if (XCharacter->HasAuthority() && !XCharacter->IsLocallyControlled())
+		//{
+		//	UE_LOG(LogTemp, Warning, TEXT("BWeaponed:%d"), bWeaponEquipped);
+		//}
 		//获取socket位置
 		LeftHandTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("LeftHandSocket"), ERelativeTransformSpace::RTS_World);
 		FVector OutPosition;

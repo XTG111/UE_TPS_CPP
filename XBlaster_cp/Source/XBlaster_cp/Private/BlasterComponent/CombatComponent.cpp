@@ -19,7 +19,6 @@ UCombatComponent::UCombatComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 
 	// ...
-
 	BaseWalkSpeed = 350.f;
 	AimWalkSpeed = 100.f;
 }
@@ -39,6 +38,7 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
 	DOREPLIFETIME(UCombatComponent, bUnderAiming);
+	//DOREPLIFETIME(UCombatComponent, bFired);
 	//DOREPLIFETIME(UCombatComponent, BaseWalkSpeed);
 	//DOREPLIFETIME(UCombatComponent, AimWalkSpeed);
 }
@@ -84,23 +84,26 @@ void UCombatComponent::OnRep_EquippedWeapon()
 		//拾取武器后切换控制
 		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
 		CharacterEx->bUseControllerRotationYaw = true;
+		EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
 	}
 }
 
 void UCombatComponent::IsFired(bool bPressed)
 {
-	bFired = bPressed;
-	ServerFire();
+	//bFired = bPressed;
+	ServerFire(bPressed);
+
 }
 
 //RPC,如果不通过repNotify进行值改变操作，其他机器上不能观测结果
-void UCombatComponent::ServerFire_Implementation()
+void UCombatComponent::ServerFire_Implementation(bool bPressed)
 {
-	MulticastFire();
+	MulticastFire(bPressed);
 }
 
-void UCombatComponent::MulticastFire_Implementation()
+void UCombatComponent::MulticastFire_Implementation(bool bPressed)
 {
+	bFired = bPressed;
 	if (EquippedWeapon == nullptr) return;
 	//UE_LOG(LogTemp, Warning, TEXT("AO_YAW:%d"), bFired);
 	if (CharacterEx)

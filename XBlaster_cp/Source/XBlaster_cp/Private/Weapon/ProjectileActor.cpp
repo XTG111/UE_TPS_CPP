@@ -2,6 +2,7 @@
 
 
 #include "Weapon/ProjectileActor.h"
+#include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
 
 // Sets default values
@@ -16,6 +17,13 @@ AProjectileActor::AProjectileActor()
 	CollisionSphere->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
 	CollisionSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
 	CollisionSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldStatic, ECollisionResponse::ECR_Block);
+
+	//子弹移动组件
+	ProjectileMovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
+	ProjectileMovementComp->bRotationFollowsVelocity = true;
+	ProjectileMovementComp->MaxSpeed = 15000.f;
+	ProjectileMovementComp->InitialSpeed = 15000.f;
+
 }
 
 // Called when the game starts or when spawned
