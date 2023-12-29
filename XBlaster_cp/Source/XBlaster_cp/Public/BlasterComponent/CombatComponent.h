@@ -43,13 +43,13 @@ protected:
 	//攻击
 	void IsFired(bool bPressed);
 
-	//RPC传递射击状态
+	//RPC传递射击状态，传递是否开枪，和客户端准星位置
 	UFUNCTION(Server, Reliable)
-		void ServerFire(bool bPressed);
+		void ServerFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
 
 	//Multicast RPC
 	UFUNCTION(NetMulticast, Reliable)
-		void MulticastFire(bool bPressed);
+		void MulticastFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
 
 	//linetrace检测设计点
 	void TraceUnderCrosshairs(FHitResult& TraceHitResult);

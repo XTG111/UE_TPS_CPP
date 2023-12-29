@@ -27,9 +27,6 @@ UCombatComponent::UCombatComponent()
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	FHitResult HitResult;
-	TraceUnderCrosshairs(HitResult);
-
 	// ...
 }
 
@@ -91,17 +88,21 @@ void UCombatComponent::OnRep_EquippedWeapon()
 void UCombatComponent::IsFired(bool bPressed)
 {
 	//bFired = bPressed;
-	ServerFire(bPressed);
+	//开枪之前，先调用求位置的函数
+	FHitResult HitResult;
+	TraceUnderCrosshairs(HitResult);
+
+	ServerFire(bPressed, HitResult.ImpactPoint);
 
 }
 
 //RPC,如果不通过repNotify进行值改变操作，其他机器上不能观测结果
-void UCombatComponent::ServerFire_Implementation(bool bPressed)
+void UCombatComponent::ServerFire_Implementation(bool bPressed, const FVector_NetQuantize& TraceHitTarget)
 {
-	MulticastFire(bPressed);
+	MulticastFire(bPressed, TraceHitTarget);
 }
 
-void UCombatComponent::MulticastFire_Implementation(bool bPressed)
+void UCombatComponent::MulticastFire_Implementation(bool bPressed, const FVector_NetQuantize& TraceHitTarget)
 {
 	bFired = bPressed;
 	if (EquippedWeapon == nullptr) return;
@@ -111,7 +112,7 @@ void UCombatComponent::MulticastFire_Implementation(bool bPressed)
 		CharacterEx->PlayFireMontage(bUnderAiming);
 		if (bFired)
 		{
-			EquippedWeapon->Fire(HitTarget);
+			EquippedWeapon->Fire(TraceHitTarget);
 		}
 		else
 		{

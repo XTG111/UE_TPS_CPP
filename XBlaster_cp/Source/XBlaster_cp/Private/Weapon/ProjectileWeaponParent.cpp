@@ -9,6 +9,13 @@ void AProjectileWeaponParent::Fire(const FVector& HitTarget)
 {
 	Super::Fire(HitTarget);
 
+	//服务器控制开火的处理和响应，通过设置类的复制将效果传递给客户端
+	if (!HasAuthority())
+	{
+		return;
+	}
+
+
 	APawn* InstigatorPawn = Cast<APawn>(GetOwner());
 	//生成子弹MuzzleFlash
 	const USkeletalMeshSocket* MuzzleFlashSocket = WeaponMesh->GetSocketByName(FName("MuzzleFlash"));

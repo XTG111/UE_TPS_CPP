@@ -76,6 +76,10 @@ public:
 	//用于开枪的控制,可以在子类覆盖
 	virtual void Fire(const FVector& HitTarget);
 
+	//抛壳类
+	UPROPERTY(EditAnywhere)
+		TSubclassOf<class ABulletShellActor> BulletShellClass;
+
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点
 	UFUNCTION()

@@ -897,3 +897,61 @@ rep通知只在值发生改变时，进行函数逻辑的执行。
 在客户端上运行Multicast只会在该客户端上运行。
 所以我们定义和声明的Multicast函数，该函数的具体调用是在我们的Server RPC函数内
 具体实现功能操作函数->调用ServerRPC函数->调用Multicast函数->内部写上具体逻辑
+
+# 子弹射击运动过程中粒子特效的添加
+首先需要一个轨道的定义，然后在BeginPlay中初始化
+```c++
+	UPROPERTY(EditAnywhere)
+		class UParticleSystem* Tracer;
+	class UParticleSystemComponent* TracerComponent;
+```
+为了使得只有服务器控制子弹射击的效果，而客户端无法修改，所以需要将开枪的函数逻辑设置为只有HasAuthority()才能执行，并且为了使得客户端也有粒子特效的效果，可以将子弹类修改为可复制的，这样就会从服务器向客户端复制。但处理这个的权限还是在服务器上。
+
+# 传递准星位置使得服务器上有准确响应
+在Fire的RPC中传递参数类型为FVector_NetQuantize的参数，其有助于减少带宽，，在可以考虑的精度范围内。
+射线检测到的HitResult.ImpactPoint就是这个类型
+```c++
+/**
+ *	FVector_NetQuantize
+ *
+ *	0 decimal place of precision.
+ *	Up to 20 bits per component.
+ *	Valid range: 2^20 = +/- 1,048,576
+ *
+ *	Note: this is the historical UE format for vector net serialization
+ *
+ */
+```
+通过RPC函数传递的参数，会随着RPC函数的广播，一同广播复制
+
+# 服务器向客户端传递音效等射击特效
+可以利用netmulticast来传播，但这样会增加网络带宽。
+我们可以利用Destroyed()函数来实现传递，当子弹被销毁的时候，我们产生特效
+Destoyed()函数会在actor在游戏过程中或者编辑器内被销毁的过程中进行调用 the actor is explicitly being destroyed during gameplay or in the editor
+```c++
+	/** Called when this actor is explicitly being destroyed during gameplay or in the editor, not called during level streaming or gameplay ending */
+	virtual void Destroyed();
+```
+所以当我们调用了destroy()来销毁子弹后，会自动调用Destroyed()函数，由于我们将子弹的属性设置为了可复制的，所以当一个子弹销毁的时候，销毁这个表现也会被服务器复制到每个客户端上。
+
+# 抛壳特效
+利用socket来确定抛壳位置，同产生子弹一样
+下面总结一下在一个socket生成物体的模板
+```c++
+#include "Engine/SkeletalMeshSocket.h"
+
+//获取socket
+USkeletalMeshSocket* SocketName = SocketOwnerMesh->GetSocketByName(FName("Socket_Name"));
+
+//获取当前socket的变换transform
+FTransform SocketTransform = SocketName->GetSocketTransform(SocketOwnerMesh);
+
+//可以自定义生成的方向和朝向,还有生成时需要忽略的等等
+//生成actor在socket
+UWorld* World = GetWorld();
+if(World)
+{
+	World->SpawnActor<ClassOfActor>(Actor,SocketTransform,...);
+}
+```
+设置完之后，记得在蓝图中新建要生成的类，并在会生成这个actor的地方给Actor赋值

@@ -4,12 +4,19 @@
 #include "Weapon/ProjectileActor.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Particles/ParticleSystemComponent.h"
+#include "particles/ParticleSystem.h"
+#include "Sound/SoundCue.h"
 
 // Sets default values
 AProjectileActor::AProjectileActor()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	bReplicates = true;
+
 	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("SphereCollision"));
 	SetRootComponent(CollisionSphere);
 	CollisionSphere->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
@@ -30,7 +37,24 @@ AProjectileActor::AProjectileActor()
 void AProjectileActor::BeginPlay()
 {
 	Super::BeginPlay();
+	if (Tracer)
+	{
+		TracerComp = UGameplayStatics::SpawnEmitterAttached(Tracer, CollisionSphere, FName(), GetActorLocation(), GetActorRotation(), EAttachLocation::KeepWorldPosition);
+	}
+
+	//绑定OnHit到OnComponentHit
+	if (HasAuthority())
+	{
+		CollisionSphere->OnComponentHit.AddDynamic(this, &AProjectileActor::OnHit);
+	}
 	
+}
+
+//在击中时播放音效，销毁等
+void AProjectileActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit)
+{
+	//摧毁,调用了Destroyed()函数
+	Destroy();
 }
 
 // Called every frame
@@ -38,5 +62,20 @@ void AProjectileActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+}
+
+void AProjectileActor::Destroyed()
+{
+	Super::Destroyed();
+	if (ImpactParticles)
+	{
+		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ImpactParticles, GetActorTransform());
+	}
+
+	//音效
+	if (ImpactSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, GetActorLocation());
+	}
 }
 

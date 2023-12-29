@@ -8,6 +8,8 @@
 #include "Net/UnrealNetWork.h"
 #include "Animation/AnimationAsset.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Weapon/BulletShellActor.h"
+#include "Engine/SkeletalMeshSocket.h"
 
 // Sets default values
 AWeaponParent::AWeaponParent()
@@ -131,6 +133,22 @@ void AWeaponParent::Fire(const FVector& HitTarget)
 	if (FireAnimation)
 	{
 		WeaponMesh->PlayAnimation(FireAnimation, true);
+	}
+	//生成抛壳 Socket AmmoEject
+	if (BulletShellClass)
+	{
+		//获取插槽
+		const USkeletalMeshSocket* AmmoEjectSocket = WeaponMesh->GetSocketByName(FName("AmmoEject"));
+		if (AmmoEjectSocket)
+		{
+			FTransform SocketTransform = AmmoEjectSocket->GetSocketTransform(WeaponMesh);
+
+			UWorld* World = GetWorld();
+			if (World)
+			{
+				World->SpawnActor<ABulletShellActor>(BulletShellClass, SocketTransform.GetLocation(), SocketTransform.GetRotation().Rotator());
+			}
+		}
 	}
 }
 
