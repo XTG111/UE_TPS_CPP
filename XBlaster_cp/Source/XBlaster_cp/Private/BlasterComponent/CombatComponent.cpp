@@ -10,6 +10,8 @@
 #include "Net/UnrealNetWork.h"
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
+#include "PlayerController/XBlasterPlayerController.h"
+#include "HUD/XBlasterHUD.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -28,6 +30,18 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	// ...
+
+	SetHUDCrossHairs(DeltaTime);
+
+	if (CharacterEx && CharacterEx->IsLocallyControlled())
+	{
+		FHitResult HitResult;
+
+		TraceUnderCrosshairs(HitResult);
+
+		HitTarget = HitResult.ImpactPoint;
+	}
+
 }
 
 void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -152,7 +166,61 @@ void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
 		{
 			DrawDebugSphere(GetWorld(), TraceHitResult.ImpactPoint, 12.f, 12, FColor::Red);
 		}
-		HitTarget = TraceHitResult.ImpactPoint;
+	}
+}
+
+//添加准星
+void UCombatComponent::SetHUDCrossHairs(float Deltatime)
+{
+	if (CharacterEx == nullptr || CharacterEx->Controller == nullptr) return;
+
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+
+	if (XBlasterPlayerController)
+	{
+		XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(XBlasterPlayerController->GetHUD()) : XBlasterHUD;
+		if (XBlasterHUD)
+		{
+			FHUDPackage HUDPackage;
+			if (EquippedWeapon)
+			{
+				HUDPackage.CrosshairsCenter = EquippedWeapon->CrosshairCenter;
+				HUDPackage.CrosshairsLeft = EquippedWeapon->CrosshairLeft;
+				HUDPackage.CrosshairsRight = EquippedWeapon->CrosshairRight;
+				HUDPackage.CrosshairsTop = EquippedWeapon->CrosshairTop;
+				HUDPackage.CrosshairsBottom = EquippedWeapon->CrosshairBottom;
+			}
+			else
+			{
+				HUDPackage.CrosshairsCenter = nullptr;
+				HUDPackage.CrosshairsLeft = nullptr;
+				HUDPackage.CrosshairsRight = nullptr;
+				HUDPackage.CrosshairsTop = nullptr;
+				HUDPackage.CrosshairsBottom = nullptr;
+			}
+			//设置Spread calculate crosshair spread
+			//利用速度映射0-1 [0,GetMaxWalkSpeed]
+			FVector2D WalkSpeedRange(0.f, CharacterEx->GetCharacterMovement()->MaxWalkSpeed);
+			FVector2D VelocityRange(0.f, 1.f);
+			FVector Velocity = CharacterEx->GetVelocity();
+			Velocity.Z = 0.f;
+
+			CrosshairVelocityFactor = FMath::GetMappedRangeValueClamped(WalkSpeedRange, VelocityRange, Velocity.Size());
+
+			//当在空中时，准星的扩散
+			if (CharacterEx->GetCharacterMovement()->IsFalling())
+			{
+				CrosshairInAirFactor = FMath::FInterpTo(CrosshairInAirFactor, 2.25f, Deltatime, 2.25f);
+			}
+			else
+			{
+				CrosshairInAirFactor = FMath::FInterpTo(CrosshairInAirFactor, 0.f, Deltatime, 30.f);
+			}
+
+			HUDPackage.CrosshairSpread = CrosshairVelocityFactor + CrosshairInAirFactor;
+
+			XBlasterHUD->SetHUDPackage(HUDPackage);
+		}
 	}
 }
 

@@ -955,3 +955,21 @@ if(World)
 }
 ```
 设置完之后，记得在蓝图中新建要生成的类，并在会生成这个actor的地方给Actor赋值
+
+# HUD绘制
+Player::Controller -->APlayerController::GetHUD()
+AHUD::DrawHUD()
+AHUD::DrawTexture()
+
+为了实现准星的绘制和游戏控制，新建了playercontroller和hud文件，然后将这两个的蓝图类写入到gamemode里面。我们的准星实现是将准星数据存储到武器中，然后在利用战斗组件进行调用设置HUD的参数，从而绘制出来准星。
+1. 先在武器父类中，添加2d纹理变量
+2. 在HUD父类中，创建存储准星数据的结构体，并且重写DrawHUD函数，和定义一个设置结构体变量的函数
+3. 在战斗组件中，通过Playercontroller调用HUD，然后通过是否装配武器判断，进行将已经存储在武器中的准星数据，赋值给结构体中的变量，利用函数
+4. 利用DrawHUD绘制准星
+首先获取屏幕中心位置
+```c++
+	GEngine->GameViewport->GetViewportSize(ViewPortSize);
+	const FVector2D ViewPortCenter(ViewPortSize.X / 2.f, ViewPortSize.Y / 2.f);
+```
+对准星位置实施一些修改，进行了一些计算，本质上是调用DrawTexture来绘制对应的纹理
+5. 准星动态变化

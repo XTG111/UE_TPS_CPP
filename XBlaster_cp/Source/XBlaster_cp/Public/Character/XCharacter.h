@@ -140,4 +140,6 @@ public:
 	ETuringInPlace GetTurninigInPlace() const;
 
 	void PlayFireMontage(bool bAiming);
+
+	FVector GetHitTarget() const;
 };

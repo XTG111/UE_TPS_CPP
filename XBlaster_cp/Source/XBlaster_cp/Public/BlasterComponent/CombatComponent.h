@@ -54,10 +54,18 @@ protected:
 	//linetrace检测设计点
 	void TraceUnderCrosshairs(FHitResult& TraceHitResult);
 
+	//添加准星 动态准星，涉及插值，所以传入参数float
+	void SetHUDCrossHairs(float Deltatime);
+
 private:
 	//角色实例
 	UPROPERTY(VisibleAnywhere)
 		class AXCharacter* CharacterEx;
+
+	//声明一个控制器，用控制来调用HUDPlayer::Controller -->APlayerController::GetHUD()
+	class AXBlasterPlayerController* XBlasterPlayerController;
+	//存储HUD
+	class AXBlasterHUD* XBlasterHUD;
 
 
 	//装备上的武器实例
@@ -79,6 +87,10 @@ private:
 		bool bFired = false;
 	//目标攻击点
 	FVector HitTarget;
+
+	//HUD Crosshair
+	float CrosshairVelocityFactor;
+	float CrosshairInAirFactor;
 
 public:	
 	void EquipWeapon(class AWeaponParent* WeaponToEquip);

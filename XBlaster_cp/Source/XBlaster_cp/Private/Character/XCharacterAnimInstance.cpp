@@ -5,6 +5,7 @@
 #include "Character/XCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Weapon/WeaponParent.h"
+#include "DrawDebugHelpers.h"
 #include <Kismet/KismetMathLibrary.h>
 
 void UXCharacterAnimInstance::NativeInitializeAnimation()
@@ -92,5 +93,26 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 		XCharacter->GetMesh()->TransformToBoneSpace(FName("hand_r"), LeftHandTransform.GetLocation(), FRotator::ZeroRotator, OutPosition, OutRotation);
 		LeftHandTransform.SetLocation(OutPosition);
 		LeftHandTransform.SetRotation(FQuat(OutRotation));
+
+		//获取枪口位置
+		FTransform MuzzleTipTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("MuzzleFlash"), ERelativeTransformSpace::RTS_World);
+		FVector MuzzleX(FRotationMatrix(MuzzleTipTransform.GetRotation().Rotator()).GetUnitAxis(EAxis::X));
+		//枪口朝向
+		DrawDebugLine(GetWorld(), MuzzleTipTransform.GetLocation(), MuzzleTipTransform.GetLocation() + MuzzleX * 1000.f, FColor::Red);
+
+		//枪口到准星点的向量
+		DrawDebugLine(GetWorld(), MuzzleTipTransform.GetLocation(), XCharacter->GetHitTarget(), FColor::Orange);
+
+		//由于准星和枪口朝向有一定角度,计算右手骨骼需要旋转的量，然后在动画蓝图中利用transform bone实现旋转
+
+		if (XCharacter->IsLocallyControlled())
+		{
+			bLocallyControlled = true;
+			FTransform RightHandTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("hand_r"), ERelativeTransformSpace::RTS_World);
+			RightHandRotation = UKismetMathLibrary::FindLookAtRotation(XCharacter->GetHitTarget(), RightHandTransform.GetLocation());
+		}
+
+
+
 	}
 }

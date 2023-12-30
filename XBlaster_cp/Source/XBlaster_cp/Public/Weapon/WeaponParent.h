@@ -80,6 +80,18 @@ public:
 	UPROPERTY(EditAnywhere)
 		TSubclassOf<class ABulletShellActor> BulletShellClass;
 
+	//准星的绘制
+	UPROPERTY(EditAnywhere,Category = Crosshairs)
+		class UTexture2D* CrosshairCenter;
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrosshairLeft;
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrosshairRight;
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrosshairTop;
+	UPROPERTY(EditAnywhere, Category = Crosshairs)
+		class UTexture2D* CrosshairBottom;
+
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点
 	UFUNCTION()

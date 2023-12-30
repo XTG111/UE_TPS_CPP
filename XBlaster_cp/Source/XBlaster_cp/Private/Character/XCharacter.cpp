@@ -410,6 +410,12 @@ void AXCharacter::PlayFireMontage(bool bAiming)
 	}
 }
 
+FVector AXCharacter::GetHitTarget() const
+{
+	if (CombatComp == nullptr) return FVector();
+	return CombatComp->HitTarget;
+}
+
 
 
 

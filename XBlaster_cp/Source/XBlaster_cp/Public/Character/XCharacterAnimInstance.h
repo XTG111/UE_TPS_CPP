@@ -79,4 +79,13 @@ private:
 	//瞄准偏移实现转向
 	UPROPERTY(BlueprintReadOnly, Category = AOTurning, meta = (AllowPrivateAccess = "true"))
 		ETuringInPlace TurningInPlace;
+
+	//右手位置，用于控制发射朝向
+	UPROPERTY(BlueprintReadOnly, Category = RightHand, meta = (AllowPrivateAccess = "true"))
+		FRotator RightHandRotation;
+
+	//判断IsLocallyContollerd
+	UPROPERTY(BlueprintReadOnly, Category = bLocControl, meta = (AllowPrivateAccess = "true"))
+	bool bLocallyControlled;
+
 };
