@@ -7,6 +7,7 @@
 #include "Weapon/WeaponParent.h"
 #include "DrawDebugHelpers.h"
 #include <Kismet/KismetMathLibrary.h>
+#include "Engine/SkeletalMeshSocket.h"
 
 void UXCharacterAnimInstance::NativeInitializeAnimation()
 {
@@ -108,11 +109,11 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 		if (XCharacter->IsLocallyControlled())
 		{
 			bLocallyControlled = true;
-			FTransform RightHandTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("hand_r"), ERelativeTransformSpace::RTS_World);
-			RightHandRotation = UKismetMathLibrary::FindLookAtRotation(XCharacter->GetHitTarget(), RightHandTransform.GetLocation());
+			//const USkeletalMeshSocket* RightHandSocket = EquippedWeapon->WeaponMesh->GetSocketByName(FName("hand_r"));
+			//FTransform RightHandTransform = RightHandSocket->GetSocketTransform(EquippedWeapon->WeaponMesh);
+			FTransform RightHandTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("RightHandSocket"), ERelativeTransformSpace::RTS_World);
+			FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(XCharacter->GetHitTarget(), RightHandTransform.GetLocation());
+			RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRotation, DeltaTime, 20.f);
 		}
-
-
-
 	}
 }

@@ -973,3 +973,132 @@ AHUD::DrawTexture()
 ```
 对准星位置实施一些修改，进行了一些计算，本质上是调用DrawTexture来绘制对应的纹理
 5. 准星动态变化
+在结构体变量添加一个控制扩散的比例，设置最大的扩散距离，并且在准星位置的计算中添加了这个扩散。然后在战斗组件中，利用速度映射求取扩散系数的值，如果在空中就利用插值来获得扩散系数
+```c++
+//准星设置
+		if (HUDPackage.CrosshairsBottom)
+		{
+			FVector2D Spread(0.f, SpreadScaled);
+			DrawCrosshair(HUDPackage.CrosshairsBottom, ViewPortCenter, Spread);
+		}
+
+//计算实际准星绘制位置
+void AXBlasterHUD::DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVector2D Spread)
+{
+	const float TextureWidth = Texture->GetSizeX();
+	const float TextureHeight = Texture->GetSizeY();
+
+	const FVector2D TextureDrawPoint(ViewportCenter.X - (TextureWidth / 2.f) + Spread.X, ViewportCenter.Y - (TextureHeight / 2.f) + Spread.Y);
+
+	DrawTexture(Texture, TextureDrawPoint.X, TextureDrawPoint.Y, TextureWidth, TextureHeight, 0.f, 0.f, 1.f, 1.f, FLinearColor::White);
+}
+
+//战斗组件设置准星
+void UCombatComponent::SetHUDCrossHairs(float Deltatime)
+{
+	if (CharacterEx == nullptr || CharacterEx->Controller == nullptr) return;
+
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+
+	if (XBlasterPlayerController)
+	{
+		XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(XBlasterPlayerController->GetHUD()) : XBlasterHUD;
+		if (XBlasterHUD)
+		{
+			FHUDPackage HUDPackage;
+			if (EquippedWeapon)
+			{
+				HUDPackage.CrosshairsCenter = EquippedWeapon->CrosshairCenter;
+				HUDPackage.CrosshairsLeft = EquippedWeapon->CrosshairLeft;
+				HUDPackage.CrosshairsRight = EquippedWeapon->CrosshairRight;
+				HUDPackage.CrosshairsTop = EquippedWeapon->CrosshairTop;
+				HUDPackage.CrosshairsBottom = EquippedWeapon->CrosshairBottom;
+			}
+			else
+			{
+				HUDPackage.CrosshairsCenter = nullptr;
+				HUDPackage.CrosshairsLeft = nullptr;
+				HUDPackage.CrosshairsRight = nullptr;
+				HUDPackage.CrosshairsTop = nullptr;
+				HUDPackage.CrosshairsBottom = nullptr;
+			}
+			//设置Spread calculate crosshair spread
+			//利用速度映射0-1 [0,GetMaxWalkSpeed]
+			FVector2D WalkSpeedRange(0.f, CharacterEx->GetCharacterMovement()->MaxWalkSpeed);
+			FVector2D VelocityRange(0.f, 1.f);
+			FVector Velocity = CharacterEx->GetVelocity();
+			Velocity.Z = 0.f;
+
+			CrosshairVelocityFactor = FMath::GetMappedRangeValueClamped(WalkSpeedRange, VelocityRange, Velocity.Size());
+
+			//当在空中时，准星的扩散
+			if (CharacterEx->GetCharacterMovement()->IsFalling())
+			{
+				CrosshairInAirFactor = FMath::FInterpTo(CrosshairInAirFactor, 2.25f, Deltatime, 2.25f);
+			}
+			else
+			{
+				CrosshairInAirFactor = FMath::FInterpTo(CrosshairInAirFactor, 0.f, Deltatime, 30.f);
+			}
+
+			HUDPackage.CrosshairSpread = CrosshairVelocityFactor + CrosshairInAirFactor;
+
+			XBlasterHUD->SetHUDPackage(HUDPackage);
+		}
+	}
+}
+```
+
+# 设置视角变换,准星颜色变化
+CameraComponent->SetFieldOfView()
+设置放大后的清晰度：
+	1. Depth Of Field -> Focus Distance
+	2. Camera -> Aperture (F-stop)
+
+通过添加接口，当射线检测的目标actor拥有这个接口时改变绘制准星的颜色。
+```c++
+TraceHitResult.GetActor()->Implements<UInteractWithCrosshairInterface>()
+```
+
+# 隐藏角色
+当摄像机靠近墙时，隐藏角色
+```c++
+GetMesh()->SetVisibility(false);
+if (CombatComp && CombatComp->EquippedWeapon && CombatComp->EquippedWeapon->WeaponMesh)
+{
+	CombatComp->EquippedWeapon->WeaponMesh->bOwnerNoSee = true;
+}
+```
+
+# 蒙太奇的网络传播
+多播RPC，利用多播RPC调用播放动画的函数，然后在子弹类的击中事件中调用这个多播RPC实现服务器向客户端的传播
+```c++
+//character.cpp
+void AXCharacter::PlayHitReactMontage()
+{
+	if (CombatComp == nullptr)
+	{
+		return;
+	}
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance)
+	{
+		AnimInstance->Montage_Play(HitReactMontage);
+		FName SectionName("FromFront");
+		AnimInstance->Montage_JumpToSection(SectionName);
+	}
+}
+
+void AXCharacter::MulticastHit_Implementation()
+{
+	PlayHitReactMontage();
+}
+//projectileActor.cpp
+	//被击中对象播放击中动画
+	AXCharacter* CharacterEx = Cast<AXCharacter>(OtherActor);
+	if (CharacterEx)
+	{
+		CharacterEx->MulticastHit();
+	}
+```
+为了使得打击的不是胶囊体而是mesh，定义一个新的objectchannel，然后将mesh变为这个碰撞类型。

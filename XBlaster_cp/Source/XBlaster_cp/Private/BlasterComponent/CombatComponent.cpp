@@ -11,7 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "DrawDebugHelpers.h"
 #include "PlayerController/XBlasterPlayerController.h"
-#include "HUD/XBlasterHUD.h"
+#include "Camera/CameraComponent.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -30,16 +30,18 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	// ...
-
-	SetHUDCrossHairs(DeltaTime);
-
 	if (CharacterEx && CharacterEx->IsLocallyControlled())
 	{
+		//获得准星位置
 		FHitResult HitResult;
-
 		TraceUnderCrosshairs(HitResult);
-
 		HitTarget = HitResult.ImpactPoint;
+
+		//绘制准星
+		SetHUDCrossHairs(DeltaTime);
+
+		//更改视角
+		InterpFOV(DeltaTime);
 	}
 
 }
@@ -64,6 +66,12 @@ void UCombatComponent::BeginPlay()
 	if (CharacterEx)
 	{
 		CharacterEx->GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+
+		if (CharacterEx->GetFollowCamera())
+		{
+			DefaultFOV = CharacterEx->GetFollowCamera()->FieldOfView;
+			CurrentFOV = DefaultFOV;
+		}
 	}	
 }
 
@@ -101,13 +109,19 @@ void UCombatComponent::OnRep_EquippedWeapon()
 
 void UCombatComponent::IsFired(bool bPressed)
 {
-	//bFired = bPressed;
+	bFired = bPressed;
 	//开枪之前，先调用求位置的函数
 	FHitResult HitResult;
 	TraceUnderCrosshairs(HitResult);
-
 	ServerFire(bPressed, HitResult.ImpactPoint);
 
+	if (bFired)
+	{
+		if (EquippedWeapon)
+		{
+			CrosshairShootingFactor = 0.75f;
+		}
+	}
 }
 
 //RPC,如果不通过repNotify进行值改变操作，其他机器上不能观测结果
@@ -151,13 +165,24 @@ void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
 	FVector CrosshairWorldPosition;
 	FVector CrosshairWorldDirection;
 	bool bScreenToWorld = UGameplayStatics::DeprojectScreenToWorld(UGameplayStatics::GetPlayerController(this, 0), CrosshairLocation, CrosshairWorldPosition, CrosshairWorldDirection);
+
 	if (bScreenToWorld)
 	{
 		//射线检测起点和终点
 		FVector Start = CrosshairWorldPosition;
-		FVector End = Start + CrosshairWorldDirection * 50000.0f;
+		if (CharacterEx)
+		{
+			float DistanceToCharacter = (CharacterEx->GetFollowCamera()->GetComponentLocation() - CharacterEx->GetActorLocation()).Size();
+			//Start = CrosshairWorldPosition * (DistanceToCharacter + 100.f);
+		}
+		FVector End = Start + CrosshairWorldDirection * 5000.0f;
 
-		bool IsHit = GetWorld()->LineTraceSingleByChannel(TraceHitResult, Start, End, ECollisionChannel::ECC_Visibility);
+		//FVector Crosshair_Location = CharacterEx->GetFollowCamera()->GetComponentLocation() + CharacterEx->GetControlRotation().Vector() * 5000;
+
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(CharacterEx);
+
+		bool IsHit = GetWorld()->LineTraceSingleByChannel(TraceHitResult, Start, End, ECollisionChannel::ECC_Visibility,Params);
 		if (!IsHit)
 		{
 			TraceHitResult.ImpactPoint = End;
@@ -165,6 +190,16 @@ void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
 		else
 		{
 			DrawDebugSphere(GetWorld(), TraceHitResult.ImpactPoint, 12.f, 12, FColor::Red);
+		}
+
+		//当命中对象继承了InteractWithCrosshairInterface接口时，改变准星颜色
+		if (TraceHitResult.GetActor() && TraceHitResult.GetActor()->Implements<UInteractWithCrosshairInterface>())
+		{
+			HUDPackage.CrosshairColor = FLinearColor::Red;
+		}
+		else
+		{
+			HUDPackage.CrosshairColor = FLinearColor::White;
 		}
 	}
 }
@@ -181,7 +216,6 @@ void UCombatComponent::SetHUDCrossHairs(float Deltatime)
 		XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(XBlasterPlayerController->GetHUD()) : XBlasterHUD;
 		if (XBlasterHUD)
 		{
-			FHUDPackage HUDPackage;
 			if (EquippedWeapon)
 			{
 				HUDPackage.CrosshairsCenter = EquippedWeapon->CrosshairCenter;
@@ -217,10 +251,45 @@ void UCombatComponent::SetHUDCrossHairs(float Deltatime)
 				CrosshairInAirFactor = FMath::FInterpTo(CrosshairInAirFactor, 0.f, Deltatime, 30.f);
 			}
 
-			HUDPackage.CrosshairSpread = CrosshairVelocityFactor + CrosshairInAirFactor;
+			//瞄准时准星变换
+			if (bUnderAiming)
+			{
+				CrosshairAimFactor = FMath::FInterpTo(CrosshairAimFactor, 0.58f, Deltatime, 30.f);
+			}
+			else
+			{
+				CrosshairAimFactor = FMath::FInterpTo(CrosshairAimFactor, 0.f, Deltatime, 30.f);
+			}
+
+			//射击后应该插值回0
+			CrosshairShootingFactor = FMath::FInterpTo(CrosshairShootingFactor, 0.f, Deltatime, 40.f);
+
+			HUDPackage.CrosshairSpread = 0.5f + CrosshairVelocityFactor + CrosshairInAirFactor - CrosshairAimFactor + CrosshairShootingFactor;
 
 			XBlasterHUD->SetHUDPackage(HUDPackage);
 		}
+	}
+}
+
+//插值设置视角
+void UCombatComponent::InterpFOV(float Deltatime)
+{
+	if (EquippedWeapon == nullptr) return;
+
+	//调整武器的ZoomFOV和ZoomInterSpeed
+	if (bUnderAiming)
+	{
+		//当我们正在瞄准，视角变换将是武器设置的视野和变化速度
+		CurrentFOV = FMath::FInterpTo(CurrentFOV, EquippedWeapon->ZoomFOV, Deltatime, EquippedWeapon->ZoomInterpSpeed);
+	}
+	else
+	{
+		//当我们取消瞄准，视角将变为默认并且是我们默认设置的变化速度
+		CurrentFOV = FMath::FInterpTo(CurrentFOV, DefaultFOV, Deltatime, ZoomInterpSpeed);
+	}
+	if (CharacterEx && CharacterEx->GetFollowCamera())
+	{
+		CharacterEx->GetFollowCamera()->SetFieldOfView(CurrentFOV);
 	}
 }
 

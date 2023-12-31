@@ -7,12 +7,13 @@
 #include "Weapon/WeaponParent.h"
 #include "BlasterComponent/CombatComponent.h"
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
+#include "Interfaces/InteractWithCrosshairInterface.h"
 #include "XCharacter.generated.h"
 
 
 
 UCLASS()
-class XBLASTER_CP_API AXCharacter : public ACharacter
+class XBLASTER_CP_API AXCharacter : public ACharacter, public IInteractWithCrosshairInterface
 {
 	GENERATED_BODY()
 
@@ -32,7 +33,13 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-
+	//开枪动画
+	void PlayFireMontage(bool bAiming);
+	//被击中动画
+	void PlayHitReactMontage();
+	//被击中动画的RPC调用
+	UFUNCTION(NetMulticast, Unreliable)
+		void MulticastHit();
 
 protected:
 	// Called when the game starts or when spawned
@@ -79,9 +86,12 @@ protected:
 	//攻击
 	void Fireing();
 	void ReFired();
+
 	//蒙太奇动画
 	UPROPERTY(EditAnywhere, Category = Combat)
 		class UAnimMontage* FireMontage;
+	UPROPERTY(EditAnywhere, Category = Combat)
+		class UAnimMontage* HitReactMontage;
 
 
 private:
@@ -109,6 +119,11 @@ private:
 	//RPC客户端调用，服务器执行，约定在函数名前加上Server
 	UFUNCTION(Server,Reliable)
 		void ServerEquipWeapon();
+
+	//隐藏角色
+	void HideCameraIfCharacterClose();
+	UPROPERTY(EditAnywhere)
+	float CameraThreshold = 100.0f;
 
 public:	
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
@@ -139,7 +154,8 @@ public:
 	//设置获取状态值到动画蓝图
 	ETuringInPlace GetTurninigInPlace() const;
 
-	void PlayFireMontage(bool bAiming);
-
 	FVector GetHitTarget() const;
+
+	//获取相机，传递给战斗组件，用于调整视角
+	UCameraComponent* GetFollowCamera() const;
 };

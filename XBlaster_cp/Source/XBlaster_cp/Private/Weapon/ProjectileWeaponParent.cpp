@@ -4,6 +4,7 @@
 #include "Weapon/ProjectileWeaponParent.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Weapon/ProjectileActor.h"
+#include <Kismet/KismetMathLibrary.h>
 
 void AProjectileWeaponParent::Fire(const FVector& HitTarget)
 {
@@ -25,7 +26,8 @@ void AProjectileWeaponParent::Fire(const FVector& HitTarget)
 
 		//发射方向从枪口到屏幕中心
 		FVector ToTarget = HitTarget - SocketTransform.GetLocation();
-		FRotator TargetRotation = ToTarget.Rotation();
+		//FRotator TargetRotation = ToTarget.Rotation();
+		FRotator TargetRotation = UKismetMathLibrary::FindLookAtRotation(SocketTransform.GetLocation(), HitTarget);
 
 
 		if (ProjectileClass && InstigatorPawn)

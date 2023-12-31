@@ -22,6 +22,8 @@ public:
 
 	//准星的扩展
 	float CrosshairSpread;
+	//准星的颜色
+	FLinearColor CrosshairColor;
 };
 /**
  * 
@@ -38,7 +40,7 @@ private:
 	FHUDPackage HUDPackage;
 
 	//绘制准星，Spread用于控制准星的变化
-	void DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVector2D Spread);
+	void DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVector2D Spread, FLinearColor DrawCrosshairColor);
 
 	UPROPERTY(EditAnywhere)
 	float CrosshairSpreadMax = 16.f;

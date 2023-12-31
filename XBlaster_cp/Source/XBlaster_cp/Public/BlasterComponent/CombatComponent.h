@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "HUD/XBlasterHUD.h"
 #include "CombatComponent.generated.h"
 
 
@@ -89,8 +90,30 @@ private:
 	FVector HitTarget;
 
 	//HUD Crosshair
+	UPROPERTY(EditAnywhere)
+		FHUDPackage HUDPackage;
 	float CrosshairVelocityFactor;
 	float CrosshairInAirFactor;
+	float CrosshairAimFactor;
+	float CrosshairShootingFactor;
+
+	/*
+	Aiming And FOV
+	*/
+	//不瞄准时的默认视角
+	float DefaultFOV;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+		float ZoomFOV = 30.f;
+
+	float CurrentFOV;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+		float ZoomInterpSpeed = 20.f;
+
+	//视角变换插值函数
+	void InterpFOV(float Deltatime);
+
 
 public:	
 	void EquipWeapon(class AWeaponParent* WeaponToEquip);

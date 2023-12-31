@@ -92,6 +92,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = Crosshairs)
 		class UTexture2D* CrosshairBottom;
 
+	//Zoom FOV while aiming
+
+	UPROPERTY(EditAnywhere)
+		float ZoomFOV = 30.f;
+	UPROPERTY(EditAnywhere)
+		float ZoomInterpSpeed = 20.f;
+
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点
 	UFUNCTION()

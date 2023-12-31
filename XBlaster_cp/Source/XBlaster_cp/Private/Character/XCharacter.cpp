@@ -14,6 +14,7 @@
 #include "BlasterComponent/CombatComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Character/XCharacterAnimInstance.h"
+#include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -29,9 +30,14 @@ AXCharacter::AXCharacter()
 	CameraComp->SetupAttachment(SpringArmComp,USpringArmComponent::SocketName);
 	CameraComp->bUsePawnControlRotation = false;
 
+	//设置相机放大后的清晰度
+	
+
 	//消除胶囊体组件对于相机的碰撞
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+	GetMesh()->SetCollisionObjectType(ECC_SkeletalMesh);
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	bUseControllerRotationYaw = false;
@@ -95,6 +101,7 @@ void AXCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	AimOffset(DeltaTime);
+	HideCameraIfCharacterClose();
 }
 
 // Called to bind functionality to input
@@ -410,12 +417,58 @@ void AXCharacter::PlayFireMontage(bool bAiming)
 	}
 }
 
+void AXCharacter::PlayHitReactMontage()
+{
+	if (CombatComp == nullptr)
+	{
+		return;
+	}
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance)
+	{
+		AnimInstance->Montage_Play(HitReactMontage);
+		FName SectionName("FromFront");
+		AnimInstance->Montage_JumpToSection(SectionName);
+	}
+}
+
 FVector AXCharacter::GetHitTarget() const
 {
 	if (CombatComp == nullptr) return FVector();
 	return CombatComp->HitTarget;
 }
 
+UCameraComponent* AXCharacter::GetFollowCamera() const
+{
+	return CameraComp;
+}
 
+
+void AXCharacter::HideCameraIfCharacterClose()
+{
+	if (!IsLocallyControlled()) return;
+	if ((CameraComp->GetComponentLocation() - GetActorLocation()).Size() < CameraThreshold)
+	{
+		GetMesh()->SetVisibility(false);
+		if (CombatComp && CombatComp->EquippedWeapon && CombatComp->EquippedWeapon->WeaponMesh)
+		{
+			CombatComp->EquippedWeapon->WeaponMesh->bOwnerNoSee = true;
+		}
+	}
+	else
+	{
+		GetMesh()->SetVisibility(true);
+		if (CombatComp && CombatComp->EquippedWeapon && CombatComp->EquippedWeapon->WeaponMesh)
+		{
+			CombatComp->EquippedWeapon->WeaponMesh->bOwnerNoSee = false;
+		}
+	}
+
+}
+
+void AXCharacter::MulticastHit_Implementation()
+{
+	PlayHitReactMontage();
+}
 
 
