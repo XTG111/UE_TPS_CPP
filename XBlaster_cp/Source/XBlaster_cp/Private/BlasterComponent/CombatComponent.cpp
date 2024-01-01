@@ -19,7 +19,7 @@ UCombatComponent::UCombatComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-
+	SetIsReplicated(true);
 	// ...
 	BaseWalkSpeed = 350.f;
 	AimWalkSpeed = 100.f;
@@ -107,21 +107,44 @@ void UCombatComponent::OnRep_EquippedWeapon()
 	}
 }
 
+void UCombatComponent::StartFireTimer()
+{
+	if (EquippedWeapon == nullptr || CharacterEx == nullptr) return;
+	CharacterEx->GetWorldTimerManager().SetTimer(FireTime, this, &UCombatComponent::FireTimeFinished, EquippedWeapon->FireDelay);
+}
+//当定时器结束再调用ControlFire相当于一个循环
+void UCombatComponent::FireTimeFinished()
+{
+	if (EquippedWeapon == nullptr) return;
+	bCanFire = true;
+	if (bFired && EquippedWeapon->bAutomatic)
+	{
+		ControlFire(bFired);
+	}
+}
+
+void UCombatComponent::ControlFire(bool bPressed)
+{
+	if (bCanFire)
+	{
+		bCanFire = false;
+		if (bFired)
+		{
+			ServerFire(bFired, HitTarget);
+			if (EquippedWeapon)
+			{
+				CrosshairShootingFactor = 0.75f;
+			}
+		}
+		StartFireTimer();
+	}
+
+}
+
 void UCombatComponent::IsFired(bool bPressed)
 {
 	bFired = bPressed;
-	//开枪之前，先调用求位置的函数
-	FHitResult HitResult;
-	TraceUnderCrosshairs(HitResult);
-	ServerFire(bPressed, HitResult.ImpactPoint);
-
-	if (bFired)
-	{
-		if (EquippedWeapon)
-		{
-			CrosshairShootingFactor = 0.75f;
-		}
-	}
+	ControlFire(bFired);
 }
 
 //RPC,如果不通过repNotify进行值改变操作，其他机器上不能观测结果

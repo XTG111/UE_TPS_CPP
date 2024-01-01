@@ -44,6 +44,8 @@ protected:
 	//攻击
 	void IsFired(bool bPressed);
 
+	void ControlFire(bool bPressed);
+
 	//RPC传递射击状态，传递是否开枪，和客户端准星位置
 	UFUNCTION(Server, Reliable)
 		void ServerFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
@@ -113,6 +115,15 @@ private:
 
 	//视角变换插值函数
 	void InterpFOV(float Deltatime);
+
+	//自动开火的定时器
+	FTimerHandle FireTime;
+	//当前的开火定时器是否完成，不能这次没有走完就发射下一发子弹
+	bool bCanFire = true;
+
+	//定时器的开始和清除
+	void StartFireTimer();
+	void FireTimeFinished();
 
 
 public:	

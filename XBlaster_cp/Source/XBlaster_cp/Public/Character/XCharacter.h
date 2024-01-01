@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Weapon/WeaponParent.h"
 #include "BlasterComponent/CombatComponent.h"
+#include "BlasterComponent/XPropertyComponent.h"
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
 #include "Interfaces/InteractWithCrosshairInterface.h"
 #include "XCharacter.generated.h"
@@ -41,6 +42,9 @@ public:
 	UFUNCTION(NetMulticast, Unreliable)
 		void MulticastHit();
 
+	//控制模拟机器上的转向动画，repnotify;
+	virtual void OnRep_ReplicatedMovement() override;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -66,11 +70,15 @@ protected:
 
 	//瞄准偏移AO_Yaw AO_Pitch
 	void AimOffset(float DeltaTime);
-	UPROPERTY(BlueprintReadOnly,Replicated)
+	void CalculateAO_Pitch();
+	UPROPERTY(BlueprintReadOnly)
 		float AO_Yaw;
-	UFUNCTION(Server, Reliable)
-		void AOYawTrans(float DeltaTime);
 	float AO_Pitch;
+
+	//模拟代理转向
+	void SimProxiesturn();
+
+
 	FRotator StartingAimRotation;
 
 	//瞄准偏移下的状态控制
@@ -125,6 +133,23 @@ private:
 	UPROPERTY(EditAnywhere)
 	float CameraThreshold = 100.0f;
 
+	//是否能够旋转根骨骼，网络传播根骨骼不是每一个tick都更新
+	bool bRotateRootBone;
+	//控制判断，用于模拟播放替代Yaw的转向动画
+	float TurnThreshold = 0.5f;
+	//记录模拟机器上上一帧和这一帧的旋转差值
+	FRotator ProxyRotationLastFrame;
+	FRotator ProxyRotation;
+	//记录差值
+	float ProxyYaw;
+	//记录上次运动之后的Actor位置
+	float TimeSinceLastMovementReplication;
+
+	//整理求速度函数，在模拟代码中，如果速度大于0，要设置不能够转向
+	float CalculateVelocity();
+
+	//
+
 public:	
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
 		bool bUnderJump = false;
@@ -158,4 +183,7 @@ public:
 
 	//获取相机，传递给战斗组件，用于调整视角
 	UCameraComponent* GetFollowCamera() const;
+
+	//设置是否能够传递根骨骼
+	FORCEINLINE bool ShouldRotateRootBone() const { return bRotateRootBone; }
 };

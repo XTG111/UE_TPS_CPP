@@ -2,6 +2,24 @@
 
 
 #include "HUD/XBlasterHUD.h"
+#include "HUD/CharacterOverlayWidget.h"
+#include "GameFramework/PlayerController.h"
+
+void AXBlasterHUD::BeginPlay()
+{
+	Super::BeginPlay();
+	AddCharacterOverlay();
+}
+
+void AXBlasterHUD::AddCharacterOverlay()
+{
+	APlayerController* PlayerController = GetOwningPlayerController();
+	if (PlayerController && CharacterOverlayWdgClass)
+	{
+		CharacterOverlayWdg = CreateWidget<UCharacterOverlayWidget>(PlayerController, CharacterOverlayWdgClass);
+		CharacterOverlayWdg->AddToViewport();
+	}
+}
 
 void AXBlasterHUD::DrawHUD()
 {
@@ -42,6 +60,8 @@ void AXBlasterHUD::DrawHUD()
 		}
 	}
 }
+
+
 //计算实际准星绘制位置
 void AXBlasterHUD::DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVector2D Spread, FLinearColor DrawCrosshairColor)
 {

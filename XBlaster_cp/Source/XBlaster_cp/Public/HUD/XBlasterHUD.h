@@ -36,6 +36,14 @@ class XBLASTER_CP_API AXBlasterHUD : public AHUD
 public:
 	virtual void DrawHUD() override;
 
+	UPROPERTY(EditAnywhere,Category = "Player State")
+		TSubclassOf<class UUserWidget> CharacterOverlayWdgClass;
+	class UCharacterOverlayWidget* CharacterOverlayWdg;
+
+protected:
+	virtual void BeginPlay() override;
+	void AddCharacterOverlay();
+
 private:
 	FHUDPackage HUDPackage;
 

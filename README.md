@@ -1102,3 +1102,150 @@ void AXCharacter::MulticastHit_Implementation()
 	}
 ```
 为了使得打击的不是胶囊体而是mesh，定义一个新的objectchannel，然后将mesh变为这个碰撞类型。
+
+# 网络更新和根骨骼旋转的冲突
+动画蓝图上的根骨骼旋转Rotate Root Bone并不是每一帧更新的，所以会在模拟ACotr的机器上出现动画抽搐的现象
+对于本地或者服务器上，角色的权限都是高于模拟代理的，当我们权限高于模拟代理我们可以开启我们的rotateRootbone，然后再调用我们需要涉及到RotateRootBone的函数比如控制AO_YAw的旋转上，
+如果我们是模拟代理那么就需要重写编写设计到RotateRootBone的函数，可以通过直接播放动画来实现。
+```c++
+/** The network role of an actor on a local/remote network context */
+UENUM()
+enum ENetRole
+{
+	/** No role at all. */
+	ROLE_None,
+	/** Locally simulated proxy of this actor. */
+	ROLE_SimulatedProxy,
+	/** Locally autonomous proxy of this actor. */
+	ROLE_AutonomousProxy,
+	/** Authoritative control over the actor. */
+	ROLE_Authority,
+	ROLE_MAX,
+};
+```
+当我们编辑了如下的一个函数用来控制actor在模拟机器上的动作后
+```c++
+//模拟转向
+void AXCharacter::SimProxiesturn()
+{
+	if (CombatComp == nullptr || CombatComp->EquippedWeapon == nullptr) return;
+	//如果是模拟转向
+	bRotateRootBone = false;
+	//如果是本地或者服务器控制才能够开启bRotateRootBOne
+	CalculateAO_Pitch();
+
+	ProxyRotationLastFrame = ProxyRotation;
+	ProxyRotation = GetActorRotation();
+	ProxyYaw = UKismetMathLibrary::NormalizedDeltaRotator(ProxyRotation, ProxyRotationLastFrame).Yaw;
+
+	//
+	if (FMath::Abs(ProxyYaw) > TurnThreshold)
+	{
+		if (ProxyYaw > TurnThreshold)
+		{
+			TurningInPlace = ETuringInPlace::ETIP_Right;
+		}
+		else if(ProxyYaw < -TurnThreshold)
+		{
+			TurningInPlace = ETuringInPlace::ETIP_Left;
+		}
+		else
+		{
+			TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+		}
+		return;
+	}
+	TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+}
+```
+功能实现了，但是还是存在相同的问题就是网络更新不是tick调用，而这个函数我们是tick调用的，导致上一帧和当前帧的差值不会时刻更新并且可能会为0，所以为了解决这个问题，就需要考虑当这个旋转值发生改变是就进行更新，那么就可以利用repnotify通知来实现。
+而UE为我们提供了这样的一个通知函数OnRep_ReplicatedMovement()
+还有一个点是什么时候调用这个通知函数，是网络每一帧更新时，如果动作发生了变化，就会调用这个函数，这样以来我们在模拟机器上的更新频率就和网络更新一样了。
+为了防止网络延迟等情况，我们还定义了一个变量用来记录OnRep_ReplicatedMovement()的上一次调用和这一次调用间隔时间，它每个tick增加DeltaTime，如果这个时间大于了某个设定值，将强行调用一次OnRep_ReplicatedMovement()
+```c++
+//OnRep_ReplicatedMovement()
+void AXCharacter::OnRep_ReplicatedMovement()
+{
+	Super::OnRep_ReplicatedMovement();
+	SimProxiesturn();
+	TimeSinceLastMovementReplication = 0;
+}
+
+//Tick
+void AXCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	//只有当角色权限大于模拟且是本地控制是才执行AimOffset
+	if (GetLocalRole() > ENetRole::ROLE_SimulatedProxy && IsLocallyControlled())
+	{
+		AimOffset(DeltaTime);
+	}
+	else
+	{
+		//更新时间
+		TimeSinceLastMovementReplication += DeltaTime;
+		//当时间超过一个阈值，那说明我们这段时间没有动作或者延迟，那么调用模拟的函数
+		//然后重置时间
+		if (TimeSinceLastMovementReplication > 0.25f)
+		{
+			OnRep_ReplicatedMovement();
+		}
+		CalculateAO_Pitch();
+	}
+	HideCameraIfCharacterClose();
+}
+```
+
+# 自动开火
+利用定时器，在第一次开火时调用定时器计算，然后在定时器结束后继续调用开火
+```c++
+void UCombatComponent::StartFireTimer()
+{
+	if (EquippedWeapon == nullptr || CharacterEx == nullptr) return;
+	CharacterEx->GetWorldTimerManager().SetTimer(FireTime, this, &UCombatComponent::FireTimeFinished, EquippedWeapon->FireDelay);
+}
+//当定时器结束再调用ControlFire相当于一个循环
+void UCombatComponent::FireTimeFinished()
+{
+	if (EquippedWeapon == nullptr) return;
+	bCanFire = true;
+	if (bFired && EquippedWeapon->bAutomatic)
+	{
+		ControlFire(bFired);
+	}
+}
+
+void UCombatComponent::ControlFire(bool bPressed)
+{
+	if (bCanFire)
+	{
+		bCanFire = false;
+		if (bFired)
+		{
+			ServerFire(bFired, HitTarget);
+			if (EquippedWeapon)
+			{
+				CrosshairShootingFactor = 0.75f;
+			}
+		}
+		StartFireTimer();
+	}
+
+}
+```
+
+#Game FrameWork
+1. GameMode : Sever Only
+	a. Default Classes
+	b. Rules
+	c. Match State
+2. GameState: Server and All Clients
+	a. State Of the game
+	b. Players States
+3. PlayerState: Server and All Clients
+	a. Player State
+4. Player Controller: Sever and Owning Client
+	a. Access to The HUD/Widgets
+5. Pawn: Server And All Clients
+6. HUD/Widgets: Owing Client Only

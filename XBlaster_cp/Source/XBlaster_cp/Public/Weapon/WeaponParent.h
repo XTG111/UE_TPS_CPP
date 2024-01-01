@@ -99,6 +99,14 @@ public:
 	UPROPERTY(EditAnywhere)
 		float ZoomInterpSpeed = 20.f;
 
+	//自动开火
+	UPROPERTY(EditAnywhere, Category = "Combat")
+		float FireDelay = 0.1f;
+
+	//控制是否时全自动
+	UPROPERTY(EditAnywhere, Category = "Combat")
+		bool bAutomatic = true;
+
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点
 	UFUNCTION()

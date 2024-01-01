@@ -71,7 +71,6 @@ void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 	//复制我们需要的变量生命周期,只复制到当前客户端
 	DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon,COND_OwnerOnly);
 	DOREPLIFETIME(AXCharacter, bUnderJump);
-	DOREPLIFETIME(AXCharacter, AO_Yaw);
 	DOREPLIFETIME(AXCharacter, TurningInPlace);
 }
 
@@ -83,6 +82,13 @@ void AXCharacter::PostInitializeComponents()
 	{
 		CombatComp->CharacterEx = this;
 	}
+}
+
+void AXCharacter::OnRep_ReplicatedMovement()
+{
+	Super::OnRep_ReplicatedMovement();
+	SimProxiesturn();
+	TimeSinceLastMovementReplication = 0;
 }
 
 // Called when the game starts or when spawned
@@ -100,7 +106,24 @@ void AXCharacter::BeginPlay()
 void AXCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	AimOffset(DeltaTime);
+
+	//只有当角色权限大于模拟且是本地控制是才执行AimOffset
+	if (GetLocalRole() > ENetRole::ROLE_SimulatedProxy && IsLocallyControlled())
+	{
+		AimOffset(DeltaTime);
+	}
+	else
+	{
+		//更新时间
+		TimeSinceLastMovementReplication += DeltaTime;
+		//当时间超过一个阈值，那说明我们这段时间没有动作，那么执行模拟的函数
+		//然后重置时间
+		if (TimeSinceLastMovementReplication > 0.25f)
+		{
+			OnRep_ReplicatedMovement();
+		}
+
+	}
 	HideCameraIfCharacterClose();
 }
 
@@ -261,36 +284,18 @@ void AXCharacter::SetOverlappingWeapon(AWeaponParent* Weapon)
 
 void AXCharacter::AimOffset(float DeltaTime)
 {	
-		AOYawTrans(DeltaTime);
-
-
-	//Pitch的设置
-	AO_Pitch = GetBaseAimRotation().Pitch;
-
-	//修正传送过程中的角度压缩
-	if (AO_Pitch > 90.f && !IsLocallyControlled())
-	{
-		//客户端-90,0会被压缩为360,270，进行强制转换
-		FVector2D InRange(270.f, 360.f);
-		FVector2D OutRange(-90.f, 0.f);
-		AO_Pitch = FMath::GetMappedRangeValueClamped(InRange, OutRange, AO_Pitch);
-	}
-}
-
-void AXCharacter::AOYawTrans_Implementation(float DeltaTime)
-{
 	if (CombatComp && CombatComp->EquippedWeapon == nullptr)
 	{
 		return;
 	}
-	FVector Velocity = GetVelocity();
-	Velocity.Z = 0.0f;
-	float Speed = Velocity.Size();
+
+	float Speed = CalculateVelocity();
 	bool bJump = bUnderJump;
 	bool bIsInAir = GetCharacterMovement()->IsFalling();
 
 	if (Speed > 0.0f || bJump || bIsInAir)
 	{
+		bRotateRootBone = false;
 		bUseControllerRotationYaw = true;
 		StartingAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
 		AO_Yaw = 0.0f;
@@ -299,6 +304,8 @@ void AXCharacter::AOYawTrans_Implementation(float DeltaTime)
 
 	if (Speed == 0.0f && !bJump && !bIsInAir)
 	{
+		//大于模拟权限可以旋转根骨骼
+		bRotateRootBone = true;
 		bUseControllerRotationYaw = true;
 		FRotator CurrentAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
 		//AO_Yaw的改变就是StartingAimRotation到CurrentAimRotation
@@ -314,6 +321,29 @@ void AXCharacter::AOYawTrans_Implementation(float DeltaTime)
 
 		TurnInPlace(DeltaTime);
 	}
+		CalculateAO_Pitch();
+}
+
+void AXCharacter::CalculateAO_Pitch()
+{
+	//Pitch的设置
+	AO_Pitch = GetBaseAimRotation().Pitch;
+
+	//修正传送过程中的角度压缩
+	if (AO_Pitch > 90.f && !IsLocallyControlled())
+	{
+		//客户端-90,0会被压缩为360,270，进行强制转换
+		FVector2D InRange(270.f, 360.f);
+		FVector2D OutRange(-90.f, 0.f);
+		AO_Pitch = FMath::GetMappedRangeValueClamped(InRange, OutRange, AO_Pitch);
+	}
+}
+
+float AXCharacter::CalculateVelocity()
+{
+	FVector Velocity = GetVelocity();
+	Velocity.Z = 0.0f;
+	return Velocity.Size();
 }
 
 ////当在原地时 Yaw的偏转到90，-90时修改状态
@@ -341,6 +371,46 @@ void AXCharacter::TurnInPlace(float DeltaTime)
 			StartingAimRotation = FRotator(0.0f, GetBaseAimRotation().Yaw, 0.0f);
 		}
 	}
+}
+
+//模拟转向
+void AXCharacter::SimProxiesturn()
+{
+	if (CombatComp == nullptr || CombatComp->EquippedWeapon == nullptr) return;
+	float Speed = CalculateVelocity();
+	CalculateAO_Pitch();
+	//如果是本地或者服务器控制才能够开启bRotateRootBOne
+	//如果是模拟转向
+	bRotateRootBone = false;
+	
+	if (Speed > 0.f)
+	{
+		TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+		return;
+	}
+
+	ProxyRotationLastFrame = ProxyRotation;
+	ProxyRotation = GetActorRotation();
+	ProxyYaw = UKismetMathLibrary::NormalizedDeltaRotator(ProxyRotation, ProxyRotationLastFrame).Yaw;
+
+	//每次计算的转向差值大于给定值，那么将执行播放转向动画
+	if (FMath::Abs(ProxyYaw) > TurnThreshold)
+	{
+		if (ProxyYaw > TurnThreshold)
+		{
+			TurningInPlace = ETuringInPlace::ETIP_Right;
+		}
+		else if(ProxyYaw < -TurnThreshold)
+		{
+			TurningInPlace = ETuringInPlace::ETIP_Left;
+		}
+		else
+		{
+			TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+		}
+		return;
+	}
+	TurningInPlace = ETuringInPlace::ETIP_NoTurning;
 }
 
 void AXCharacter::Fireing()
@@ -404,16 +474,12 @@ void AXCharacter::PlayFireMontage(bool bAiming)
 		return;
 	}
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance)
+	if (AnimInstance && CombatComp->bFired)
 	{
 		AnimInstance->Montage_Play(FireMontage);
 		FName SectionName;
 		SectionName = bAiming ? FName("AimFire") : FName("FireEquip");
 		AnimInstance->Montage_JumpToSection(SectionName);
-	}
-	if (!CombatComp->bFired)
-	{
-		AnimInstance->Montage_Stop(-1, FireMontage);
 	}
 }
 

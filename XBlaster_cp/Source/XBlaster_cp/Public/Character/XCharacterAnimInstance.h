@@ -88,4 +88,7 @@ private:
 	UPROPERTY(BlueprintReadOnly, Category = bLocControl, meta = (AllowPrivateAccess = "true"))
 	bool bLocallyControlled;
 
+	//控制是否能够旋转根骨骼
+	UPROPERTY(BlueprintReadOnly, Category = bRotControl, meta = (AllowPrivateAccess = "true"))
+		bool bRoatetRootBone;
 };

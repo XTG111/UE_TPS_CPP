@@ -132,7 +132,7 @@ void AWeaponParent::Fire(const FVector& HitTarget)
 {
 	if (FireAnimation)
 	{
-		WeaponMesh->PlayAnimation(FireAnimation, true);
+		WeaponMesh->PlayAnimation(FireAnimation, false);
 	}
 	//иЗЁиев©г Socket AmmoEject
 	if (BulletShellClass)

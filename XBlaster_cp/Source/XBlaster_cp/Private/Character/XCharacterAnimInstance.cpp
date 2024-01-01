@@ -57,6 +57,9 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	//是否瞄准
 	bUnderAiming = XCharacter->GetIsAiming();
 
+	//是否能够旋转根骨骼
+	bRoatetRootBone = XCharacter->ShouldRotateRootBone();
+
 	//控制持枪移动
 	//鼠标的旋转 controlRotation
 	FRotator AimRotation = XCharacter->GetBaseAimRotation();
@@ -95,14 +98,14 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 		LeftHandTransform.SetLocation(OutPosition);
 		LeftHandTransform.SetRotation(FQuat(OutRotation));
 
-		//获取枪口位置
-		FTransform MuzzleTipTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("MuzzleFlash"), ERelativeTransformSpace::RTS_World);
-		FVector MuzzleX(FRotationMatrix(MuzzleTipTransform.GetRotation().Rotator()).GetUnitAxis(EAxis::X));
-		//枪口朝向
-		DrawDebugLine(GetWorld(), MuzzleTipTransform.GetLocation(), MuzzleTipTransform.GetLocation() + MuzzleX * 1000.f, FColor::Red);
+		////获取枪口位置
+		//FTransform MuzzleTipTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("MuzzleFlash"), ERelativeTransformSpace::RTS_World);
+		//FVector MuzzleX(FRotationMatrix(MuzzleTipTransform.GetRotation().Rotator()).GetUnitAxis(EAxis::X));
+		////枪口朝向
+		//DrawDebugLine(GetWorld(), MuzzleTipTransform.GetLocation(), MuzzleTipTransform.GetLocation() + MuzzleX * 1000.f, FColor::Red);
 
-		//枪口到准星点的向量
-		DrawDebugLine(GetWorld(), MuzzleTipTransform.GetLocation(), XCharacter->GetHitTarget(), FColor::Orange);
+		////枪口到准星点的向量
+		//DrawDebugLine(GetWorld(), MuzzleTipTransform.GetLocation(), XCharacter->GetHitTarget(), FColor::Orange);
 
 		//由于准星和枪口朝向有一定角度,计算右手骨骼需要旋转的量，然后在动画蓝图中利用transform bone实现旋转
 
