@@ -27,6 +27,10 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	//响应伤害 对UE内置ApplayDamage的回调，需要满足一下规则形参
+	UFUNCTION()
+	void ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
+
 private:
 	//Health
 	UPROPERTY(EditAnywhere, Category = "Player State")
@@ -37,7 +41,7 @@ private:
 	UPROPERTY(VisibleAnywhere, ReplicatedUsing = OnRep_HealthChange, Category="Player State")
 	float Health = 100.0f;
 	UFUNCTION()
-	void OnRep_HealthChange();
+	void OnRep_HealthChange();	
 
-		
+	class AXCharacter* XCharacter;
 };

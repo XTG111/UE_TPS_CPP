@@ -3,6 +3,7 @@
 
 #include "BlasterComponent/XPropertyComponent.h"
 #include "Net/UnrealNetWork.h"
+#include "Character/XCharacter.h"
 
 // Sets default values for this component's properties
 UXPropertyComponent::UXPropertyComponent()
@@ -24,9 +25,9 @@ void UXPropertyComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 void UXPropertyComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	XCharacter = Cast<AXCharacter>(GetOwner());
 
-	// ...
-	
+	//
 }
 
 
@@ -38,8 +39,18 @@ void UXPropertyComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	// ...
 }
 
+void UXPropertyComponent::ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
+{
+	Health = FMath::Clamp(Health - Damage, 0.f, MAXHealth);
+	XCharacter->UpdateHUDHealth();
+	//将受击动画的播放改到这里，降低RPC调用的负担
+	XCharacter->PlayHitReactMontage();
+	
+}
+
 void UXPropertyComponent::OnRep_HealthChange()
 {
-
+	XCharacter->UpdateHUDHealth();
+	XCharacter->PlayHitReactMontage();
 }
 

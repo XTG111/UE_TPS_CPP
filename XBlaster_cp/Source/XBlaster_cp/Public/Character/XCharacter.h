@@ -38,12 +38,21 @@ public:
 	void PlayFireMontage(bool bAiming);
 	//被击中动画
 	void PlayHitReactMontage();
-	//被击中动画的RPC调用
-	UFUNCTION(NetMulticast, Unreliable)
-		void MulticastHit();
+	////被击中动画的RPC调用
+	//UFUNCTION(NetMulticast, Unreliable)
+	//	void MulticastHit();
 
 	//控制模拟机器上的转向动画，repnotify;
 	virtual void OnRep_ReplicatedMovement() override;
+
+	//更新血条
+	UFUNCTION()
+		void UpdateHUDHealth();
+	UFUNCTION()
+		void ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
+
+	UPROPERTY(BlueprintReadOnly)
+		float Check = 0.0f;
 
 protected:
 	// Called when the game starts or when spawned
@@ -92,15 +101,14 @@ protected:
 		void TurnInPlace(float DeltaTime);
 
 	//攻击
-	void Fireing();
-	void ReFired();
+		void Fireing();
+		void ReFired();
 
 	//蒙太奇动画
 	UPROPERTY(EditAnywhere, Category = Combat)
 		class UAnimMontage* FireMontage;
 	UPROPERTY(EditAnywhere, Category = Combat)
 		class UAnimMontage* HitReactMontage;
-
 
 private:
 	UPROPERTY(VisibleAnywhere, Category= Camera)
@@ -123,6 +131,10 @@ private:
 	//战斗组件设置
 	UPROPERTY(VisibleAnywhere,Category = Combat)
 		class UCombatComponent* CombatComp;
+
+	//人物属性组件
+	UPROPERTY(VisibleAnywhere, Category = CharactrerPp)
+		class UXPropertyComponent* PropertyComp;
 
 	//RPC客户端调用，服务器执行，约定在函数名前加上Server
 	UFUNCTION(Server,Reliable)
@@ -148,7 +160,8 @@ private:
 	//整理求速度函数，在模拟代码中，如果速度大于0，要设置不能够转向
 	float CalculateVelocity();
 
-	//
+	//角色控制器
+	class AXBlasterPlayerController* XBlasterPlayerController;
 
 public:	
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)

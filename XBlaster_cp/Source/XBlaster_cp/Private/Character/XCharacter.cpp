@@ -15,6 +15,8 @@
 #include "Components/CapsuleComponent.h"
 #include "Character/XCharacterAnimInstance.h"
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
+#include "PlayerController/XBlasterPlayerController.h"
+#include "BlasterComponent/XPropertyComponent.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -50,6 +52,10 @@ AXCharacter::AXCharacter()
 	CombatComp = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComp"));
 	//战斗控制，需要通过服务器复制给客户端
 	CombatComp->SetIsReplicated(true);
+
+	//人物属性组件
+	PropertyComp = CreateDefaultSubobject<UXPropertyComponent>(TEXT("PropertyComp"));
+	PropertyComp->SetIsReplicated(true);
 
 	//控制是否蹲下的bool值，这是UE自己定义的,开启后才能有下蹲功能
 	//	/** Returns true if component can crouch */
@@ -100,6 +106,14 @@ void AXCharacter::BeginPlay()
 	UOverHeadWidget* CharacterHeadWidget = Cast<UOverHeadWidget>(OverHeadWidget->GetUserWidgetObject());
 	CharacterHeadWidget->ShowPlayerNetRole(this);
 	
+	//
+	UpdateHUDHealth();
+
+	//OnTakeAnyDamage.AddDynamic(this, &AXCharacter::ReceivedDamage);
+	if (HasAuthority())
+	{
+		OnTakeAnyDamage.AddDynamic(this, &AXCharacter::ReceivedDamage);
+	}
 }
 
 // Called every frame
@@ -415,7 +429,7 @@ void AXCharacter::SimProxiesturn()
 
 void AXCharacter::Fireing()
 {
-	if (CombatComp)
+	if (CombatComp && CombatComp->EquippedWeapon)
 	{
 		CombatComp->IsFired(true);
 	}
@@ -423,7 +437,7 @@ void AXCharacter::Fireing()
 
 void AXCharacter::ReFired()
 {
-	if (CombatComp)
+	if (CombatComp && CombatComp->EquippedWeapon)
 	{
 		CombatComp->IsFired(false);
 	}
@@ -532,9 +546,24 @@ void AXCharacter::HideCameraIfCharacterClose()
 
 }
 
-void AXCharacter::MulticastHit_Implementation()
+//void AXCharacter::MulticastHit_Implementation()
+//{
+//	PlayHitReactMontage();
+//}
+
+void AXCharacter::UpdateHUDHealth()
 {
-	PlayHitReactMontage();
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(Controller) : XBlasterPlayerController;
+	if (XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHealth(PropertyComp->Health, PropertyComp->MAXHealth);
+	}
 }
+
+void AXCharacter::ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
+{
+	PropertyComp->ReceivedDamage(DamageActor, Damage, DamageType, InstigatorController, DamageCauser);
+}
+
 
 

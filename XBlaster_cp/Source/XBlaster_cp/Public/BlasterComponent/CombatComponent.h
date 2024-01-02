@@ -86,7 +86,7 @@ private:
 		float AimWalkSpeed;
 
 	//¹¥»÷
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated,BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		bool bFired = false;
 	//Ä¿±ê¹¥»÷µã
 	FVector HitTarget;

@@ -1235,7 +1235,7 @@ void UCombatComponent::ControlFire(bool bPressed)
 }
 ```
 
-#Game FrameWork
+# Game FrameWork
 1. GameMode : Sever Only
 	a. Default Classes
 	b. Rules
@@ -1249,3 +1249,40 @@ void UCombatComponent::ControlFire(bool bPressed)
 	a. Access to The HUD/Widgets
 5. Pawn: Server And All Clients
 6. HUD/Widgets: Owing Client Only
+
+# 血条绘制
+和准星绘制一样
+首先需要创建一个Widget类，然后将这个类添加到HUD类中，在蓝图里绑定相应的蓝图。
+通过角色控制器来调用HUD，绘制这个Widget，准星的绘制也可以修改到这里，这不过就需要在重写一个Tick函数。
+
+UI的制作
+1. 创建一个PlayerController 和 HUD类。PlayerController用来调用HUD显示Widget，基本所有Widget都组合在HUD里面
+2. 创建一个Widget为你具体想实现的UI。记得利用属性说明符和元数据meta=(BindWidget)，变量名字要与蓝图中一致
+3. 在UE中新建三个蓝图类分别以上述三个类为父类。HUD类中绑定Widget蓝图类，Widget蓝图类中类属性设置绑定对应的C++类
+4. 在PlayerController()中初始化HUD类，以及编写设计Widget中参数的函数实现对UI的更改。
+5. 第4步不一定在PlayerController()类中实现，只要可以调用到HUD的类方法都可以使用从而实现。
+
+# 伤害响应
+1. 对子弹使用UE内置的ApplyDamage函数设置，以满足伤害响应
+2. 对于被击中角色，就需要在角色类中使用对应的回调函数，而UE已经设置了响应的委托，所以我们是需要定义符合参数的回调函数就可以了。
+```c++
+void ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, class AController* InstigatorController, AActor* DamageCauser);
+```
+3. 编辑血量数学表达式，并且从游戏开始就初始化这个回调函数，利用HasAuthority来限制之间服务器上响应。
+4. 我们将血量设置为可复制的利用REPNotify来传递给其他客户端，这样一来，我们就可以把血条的更改和受击动画的播放写在OnRep里面了，避免了对RPC的占用
+```c++
+void UXPropertyComponent::ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
+{
+	Health = FMath::Clamp(Health - Damage, 0.f, MAXHealth);
+	XCharacter->UpdateHUDHealth();
+	//将受击动画的播放改到这里，降低RPC调用的负担
+	XCharacter->PlayHitReactMontage();
+	
+}
+
+void UXPropertyComponent::OnRep_HealthChange()
+{
+	XCharacter->UpdateHUDHealth();
+	XCharacter->PlayHitReactMontage();
+}
+```

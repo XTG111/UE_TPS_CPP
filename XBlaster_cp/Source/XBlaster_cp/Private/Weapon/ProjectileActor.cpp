@@ -56,12 +56,12 @@ void AProjectileActor::BeginPlay()
 //在击中时播放音效，销毁等
 void AProjectileActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit)
 {
-	//被击中对象播放击中动画
-	AXCharacter* CharacterEx = Cast<AXCharacter>(OtherActor);
-	if (CharacterEx)
-	{
-		CharacterEx->MulticastHit();
-	}
+	////被击中对象播放击中动画
+	//AXCharacter* CharacterEx = Cast<AXCharacter>(OtherActor);
+	//if (CharacterEx)
+	//{
+	//	CharacterEx->MulticastHit();
+	//}
 
 	//摧毁,调用了Destroyed()函数
 	Destroy();

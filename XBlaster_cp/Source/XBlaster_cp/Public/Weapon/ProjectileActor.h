@@ -48,5 +48,8 @@ public:
 	UPROPERTY(EditAnywhere)
 		class USoundCue* ImpactSound;
 
+	UPROPERTY(EditAnywhere)
+		float DamageBaseFloat = 10.f;
+
 
 };
