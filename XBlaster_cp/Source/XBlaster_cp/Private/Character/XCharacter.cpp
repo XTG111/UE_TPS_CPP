@@ -17,6 +17,10 @@
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
 #include "PlayerController/XBlasterPlayerController.h"
 #include "BlasterComponent/XPropertyComponent.h"
+#include "TimerManager.h"
+#include "GameMode/XBlasterGameMode.h"
+#include "Sound/SoundCue.h"
+#include "Particles/ParticleSystemComponent.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -68,6 +72,9 @@ AXCharacter::AXCharacter()
 	//网络刷新
 	NetUpdateFrequency = 66.f;
 	MinNetUpdateFrequency = 33.f;
+
+	//构建时间轴组件
+	DissolveTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DissolveTimelineComp"));
 }
 
 void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -512,6 +519,15 @@ void AXCharacter::PlayHitReactMontage()
 	}
 }
 
+void AXCharacter::PlayElimMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance&&ElimMontage)
+	{
+		AnimInstance->Montage_Play(ElimMontage);
+	}
+}
+
 FVector AXCharacter::GetHitTarget() const
 {
 	if (CombatComp == nullptr) return FVector();
@@ -521,6 +537,12 @@ FVector AXCharacter::GetHitTarget() const
 UCameraComponent* AXCharacter::GetFollowCamera() const
 {
 	return CameraComp;
+}
+
+AXBlasterPlayerController* AXCharacter::GetXBlasterPlayerCtr()
+{
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(Controller) : XBlasterPlayerController;
+	return XBlasterPlayerController;
 }
 
 
@@ -562,8 +584,99 @@ void AXCharacter::UpdateHUDHealth()
 
 void AXCharacter::ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
 {
-	PropertyComp->ReceivedDamage(DamageActor, Damage, DamageType, InstigatorController, DamageCauser);
+	PropertyComp->ReceivedDamage(Damage, InstigatorController);
 }
 
+//处理在服务器上的变化
+void AXCharacter::Elim()
+{
+	if (CombatComp && CombatComp->EquippedWeapon)
+	{
+		CombatComp->EquippedWeapon->Drop();
+	}
+	MulticastElim();
+	GetWorldTimerManager().SetTimer(ElimTimer, this, &AXCharacter::ElimTimerFinished, ElimDelay);
+}
+
+//需要传给其他客户端的变化
+void AXCharacter::MulticastElim_Implementation()
+{
+	bElimmed = true;
+	PlayElimMontage();
+
+	//改变角色的默认材质，为可溶解效果材质
+	if (DissolveMaterialInstance)
+	{
+		DynamicDissolveMaterialInstance = UMaterialInstanceDynamic::Create(DissolveMaterialInstance, this);
+		GetMesh()->SetMaterial(0, DynamicDissolveMaterialInstance);
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Dissolve"), 0.55f);
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Grow"), 200.0f);
+	}
+	StartDissolve();
+
+	//禁用移动
+	GetCharacterMovement()->DisableMovement();
+	GetCharacterMovement()->StopMovementImmediately();
+	if (XBlasterPlayerController)
+	{
+		DisableInput(XBlasterPlayerController);
+	}
+
+	//禁用碰撞
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	//ElimBot
+	if (ElimBotEffect)
+	{
+		FVector ElimBotSpawnPoint(GetActorLocation().X, GetActorLocation().Y, GetActorLocation().Z + 200.f);
+		ElimBotComp = UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ElimBotEffect, ElimBotSpawnPoint, GetActorRotation());
+	}
+	if (ElimBotSound)
+	{
+		UGameplayStatics::SpawnSoundAtLocation(this, ElimBotSound, GetActorLocation());
+	}
+
+}
+
+//重生
+void AXCharacter::ElimTimerFinished()
+{
+	//重生角色
+	AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
+
+	if (XBlasterGameMode)
+	{
+		XBlasterGameMode->RequestRespawn(this, Controller);
+	}
+}
+
+//ElimBot的销毁由服务器传给客户端
+void AXCharacter::Destroyed()
+{
+	Super::Destroyed();
+	if (ElimBotComp)
+	{
+		ElimBotComp->DestroyComponent();
+	}
+}
+
+//溶解死亡
+void AXCharacter::UpdateDissolveMaterial(float Dissolve)
+{
+	if (DynamicDissolveMaterialInstance)
+	{
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Dissolve"), Dissolve);
+	}
+}
+void AXCharacter::StartDissolve()
+{
+	DissolveTrack.BindDynamic(this, &AXCharacter::UpdateDissolveMaterial);
+	if (DissolveCurve && DissolveTimeline)
+	{
+		DissolveTimeline->AddInterpFloat(DissolveCurve, DissolveTrack);
+		DissolveTimeline->Play();
+	}
+}
 
 

@@ -4,6 +4,8 @@
 #include "BlasterComponent/XPropertyComponent.h"
 #include "Net/UnrealNetWork.h"
 #include "Character/XCharacter.h"
+#include "GameMode/XBlasterGameMode.h"
+#include "PlayerController/XBlasterPlayerController.h"
 
 // Sets default values for this component's properties
 UXPropertyComponent::UXPropertyComponent()
@@ -11,7 +13,6 @@ UXPropertyComponent::UXPropertyComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-	SetIsReplicated(true);
 	// ...
 }
 
@@ -39,13 +40,23 @@ void UXPropertyComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	// ...
 }
 
-void UXPropertyComponent::ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
+void UXPropertyComponent::ReceivedDamage(float Damage, AController* InstigatorController)
 {
 	Health = FMath::Clamp(Health - Damage, 0.f, MAXHealth);
 	XCharacter->UpdateHUDHealth();
 	//将受击动画的播放改到这里，降低RPC调用的负担
 	XCharacter->PlayHitReactMontage();
-	
+
+	if (Health == 0.0f)
+	{
+		AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
+		if (XBlasterGameMode && XCharacter)
+		{	
+			//XCharacter->XBlasterPlayerController = XCharacter->XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(XCharacter->Controller) : XCharacter->XBlasterPlayerController;
+			AXBlasterPlayerController* AttackerContorller = Cast<AXBlasterPlayerController>(InstigatorController);
+			XBlasterGameMode->PlayerEliminated(XCharacter, XCharacter->GetXBlasterPlayerCtr(), AttackerContorller);
+		}
+	}
 }
 
 void UXPropertyComponent::OnRep_HealthChange()

@@ -9,6 +9,7 @@
 #include "BlasterComponent/XPropertyComponent.h"
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
 #include "Interfaces/InteractWithCrosshairInterface.h"
+#include "Components/TimelineComponent.h"
 #include "XCharacter.generated.h"
 
 
@@ -38,9 +39,8 @@ public:
 	void PlayFireMontage(bool bAiming);
 	//被击中动画
 	void PlayHitReactMontage();
-	////被击中动画的RPC调用
-	//UFUNCTION(NetMulticast, Unreliable)
-	//	void MulticastHit();
+	//死亡动画
+	void PlayElimMontage();
 
 	//控制模拟机器上的转向动画，repnotify;
 	virtual void OnRep_ReplicatedMovement() override;
@@ -51,8 +51,13 @@ public:
 	UFUNCTION()
 		void ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
 
-	UPROPERTY(BlueprintReadOnly)
-		float Check = 0.0f;
+
+	//仅在服务器上调用死亡响应
+	void Elim();
+
+	//响应死亡
+	UFUNCTION(NetMulticast, Reliable)
+		void MulticastElim();
 
 protected:
 	// Called when the game starts or when spawned
@@ -109,6 +114,9 @@ protected:
 		class UAnimMontage* FireMontage;
 	UPROPERTY(EditAnywhere, Category = Combat)
 		class UAnimMontage* HitReactMontage;
+	UPROPERTY(EditAnywhere, Category = Combat)
+		class UAnimMontage* ElimMontage;
+
 
 private:
 	UPROPERTY(VisibleAnywhere, Category= Camera)
@@ -163,6 +171,52 @@ private:
 	//角色控制器
 	class AXBlasterPlayerController* XBlasterPlayerController;
 
+	//是否死亡
+	bool bElimmed = false;
+
+	//重生时间控制
+	FTimerHandle ElimTimer;
+	UPROPERTY(EditDefaultsOnly)
+		float ElimDelay = 3.0f;
+	void ElimTimerFinished();
+
+	//死亡溶解效果
+	// 
+
+	//动态材质用于在代码中操作变量 change at Runtime
+	UPROPERTY(VisibleAnywhere, Category = Elim)
+		UMaterialInstanceDynamic* DynamicDissolveMaterialInstance;
+	//静态材质用于在蓝图中设置，是角色本身的材质实例 set on the BP,use for set the dynamic Material
+	UPROPERTY(EditAnywhere, Category = Elim)
+		UMaterialInstance* DissolveMaterialInstance;
+//时间轴
+// 
+// 
+	UPROPERTY(VisibleAnywhere)
+		UTimelineComponent* DissolveTimeline;
+	//相当于蓝图中的Track
+	FOnTimelineFloat DissolveTrack;
+
+	//时间轴曲线
+	UPROPERTY(EditAnywhere)
+		UCurveFloat* DissolveCurve;
+
+	//获取曲线上的值
+	UFUNCTION()
+		void UpdateDissolveMaterial(float Dissolve);
+	//开始溶解
+	void StartDissolve();
+
+	//ElimBot
+	UPROPERTY(EditAnywhere, Category = ElimBot)
+		UParticleSystem* ElimBotEffect;
+	UPROPERTY(VisibleAnywhere, Category = ElimBot)
+		UParticleSystemComponent* ElimBotComp;
+	UPROPERTY(EditAnywhere, Category = ElimBot)
+		class USoundCue* ElimBotSound;
+	//ElimBot在客户端的消失，利用Destroyed()
+	virtual void Destroyed() override;
+
 public:	
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
 		bool bUnderJump = false;
@@ -199,4 +253,7 @@ public:
 
 	//设置是否能够传递根骨骼
 	FORCEINLINE bool ShouldRotateRootBone() const { return bRotateRootBone; }
+	FORCEINLINE bool IsElimmed() const { return bElimmed; }
+
+	AXBlasterPlayerController* GetXBlasterPlayerCtr();
 };

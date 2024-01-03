@@ -91,4 +91,8 @@ private:
 	//控制是否能够旋转根骨骼
 	UPROPERTY(BlueprintReadOnly, Category = bRotControl, meta = (AllowPrivateAccess = "true"))
 		bool bRoatetRootBone;
+	
+	//控制是否死亡
+	UPROPERTY(BlueprintReadOnly, Category = Elimm, meta = (AllowPrivateAccess = "true"))
+		bool bElimmed;
 };

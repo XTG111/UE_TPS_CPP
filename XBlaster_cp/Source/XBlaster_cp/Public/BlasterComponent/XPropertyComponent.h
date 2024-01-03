@@ -29,7 +29,7 @@ public:
 
 	//响应伤害 对UE内置ApplayDamage的回调，需要满足一下规则形参
 	UFUNCTION()
-	void ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
+	void ReceivedDamage(float Damage, AController* InstigatorController);
 
 private:
 	//Health

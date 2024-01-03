@@ -1286,3 +1286,223 @@ void UXPropertyComponent::OnRep_HealthChange()
 	XCharacter->PlayHitReactMontage();
 }
 ```
+
+# 设置GameMode，和死亡动画
+控制角色死亡，得分等等
+GameMode可以理解为整个游戏的规则，所以死亡，得分，升级这些可以写在这里
+
+1. 死亡动画的播放
+	利用GameMode处理玩家是否死亡，可以定义一个的PlayerEliminated函数，其可以接受到要消失的那个actor，然后利用这个函数调用角色死亡的处理函数。
+```c++
+void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlasterPlayerController* VictimController, AXBlasterPlayerController* AttackerController)
+{
+	if (ElimmedCharacter)
+	{
+		ElimmedCharacter->Elim();
+	}
+}
+```
+2. 播放死亡动画
+	在Character类中利用Montage播放动画，并在处理死亡的函数中调用
+```c++
+void AXCharacter::PlayElimMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance&&ElimMontage)
+	{
+		AnimInstance->Montage_Play(ElimMontage);
+	}
+}
+
+void AXCharacter::Elim()
+{
+	//对动画蓝图通信，死亡和非死亡的动画选择不一样
+	bElimmed = true;
+	PlayElimMontage();
+}
+```
+3. 当血量降为0时，调用GameMode里面的PlayerEliminated函数，从而调用角色中的Elim函数。我们的血量计算是放在属性组件中的所以需要将函数调用放在属性组件中。
+为了实现动画从服务器到客户端，还应当将Elim()设置为多播RPC，当调用服务器上的Elim函数播放死亡动画的时候会传播到所有客户端体现。
+```c++
+//PropertyComponent.cpp
+void UXPropertyComponent::ReceivedDamage(float Damage, AController* InstigatorController)
+{
+	Health = FMath::Clamp(Health - Damage, 0.f, MAXHealth);
+	XCharacter->UpdateHUDHealth();
+	//将受击动画的播放改到这里，降低RPC调用的负担
+	XCharacter->PlayHitReactMontage();
+
+	if (Health == 0.0f)
+	{
+		AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
+		if (XBlasterGameMode && XCharacter)
+		{	
+			//XCharacter->XBlasterPlayerController = XCharacter->XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(XCharacter->Controller) : XCharacter->XBlasterPlayerController;
+			AXBlasterPlayerController* AttackerContorller = Cast<AXBlasterPlayerController>(InstigatorController);
+			XBlasterGameMode->PlayerEliminated(XCharacter, XCharacter->GetXBlasterPlayerCtr(), AttackerContorller);
+		}
+	}
+}
+
+//Character
+void AXCharacter::Elim_Implementation()
+{
+	//对动画蓝图通信，死亡和非死亡的动画选择不一样
+	bElimmed = true;
+	PlayElimMontage();
+}
+
+```
+
+# 死亡角色的消失和重生
+利用定时器实现角色的重生。
+将重生函数写在GameMode里，函数需要一个Actor用于确定哪一个Actor消失，然后一个控制器用来控制Actor的生成。
+在角色的代码中，当我们的血量为0开始播放死亡动画时，开启定时器，当定时器结束调用重生函数生成Actor
+```c++
+//GameMode
+void AXBlasterGameMode::RequestRespawn(AXCharacter* ElimmedCharacter, AController* ElimmedController)
+{
+	if (ElimmedCharacter)
+	{
+		ElimmedCharacter->Reset();
+		ElimmedCharacter->Destroy();
+	}
+	if (ElimmedController)
+	{
+		TArray<AActor*> PlayerStarts;
+		UGameplayStatics::GetAllActorsOfClass(this, APlayerStart::StaticClass(), PlayerStarts);
+
+		int32 Selection = FMath::RandRange(0, PlayerStarts.Num() - 1);
+
+		RestartPlayerAtPlayerStart(ElimmedController, PlayerStarts[Selection]);
+	}
+}
+
+//character
+void AXCharacter::Elim()
+{
+	MulticastElim();
+	GetWorldTimerManager().SetTimer(ElimTimer, this, &AXCharacter::ElimTimerFinished, ElimDelay);
+}
+
+//重生
+void AXCharacter::ElimTimerFinished()
+{
+	//重生角色
+	AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
+
+	if (XBlasterGameMode)
+	{
+		XBlasterGameMode->RequestRespawn(this, Controller);
+	}
+}
+```
+
+# 溶解材质 ♥♥♥
+利用噪声纹理创建溶解的材质，更改纹理的大小即可控制黑白的交替
+为了高亮边框，我们利用当前纹理的uv图来获取黑白的位置，利用u坐标，将另一个噪声纹理添加上去，这样就可以获得上一个纹理黑白之间的边缘
+
+# 曲线控制溶解
+利用时间轴，控制材质的参数，调整溶解效果。
+1. 时间轴
+```c++
+//.h
+	//时间轴组件
+	UPROPERTY(VisibleAnywhere)
+		UTimelineComponent* DissolveTimeline;
+	//相当于蓝图中的轨道
+	FOnTimelineFloat DissolveTrack;
+
+	//时间轴曲线
+	UPROPERTY(EditAnywhere)
+		UCurveFloat* DissolveCurve;
+
+	//获取曲线上的值，用于更新我们要操作的值，相当于蓝图中的输出
+	UFUNCTION()
+		void UpdateDissolveMaterial(float Dissolve);
+	//开始溶解，时间轴绑定上方那个获取值函数的地方，可以被外界调用
+	void StartDissolve();
+	
+//.cpp
+
+//进行时间轴的初始化，绑定，添加曲线，开始运行时间轴等等
+//被其他函数调用，从而调用时间轴
+void AXCharacter::StartDissolve()
+{
+	DissolveTrack.BindDynamic(this, &AXCharacter::UpdateDissolveMaterial);
+	if (DissolveCurve && DissolveTimeline)
+	{
+		DissolveTimeline->AddInterpFloat(DissolveCurve, DissolveTrack);
+		DissolveTimeline->Play();
+	}
+}
+
+//时间轴的回调函数，用于处理我们的具体逻辑
+void AXCharacter::UpdateDissolveMaterial(float Dissolve)
+{
+	if (DynamicDissolveMaterialInstance)
+	{
+	//对材质中的参数进行复制
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Dissolve"), Dissolve);
+	}
+}
+
+//外界调用函数
+void AXCharacter::MulticastElim_Implementation()
+{
+	bElimmed = true;
+	PlayElimMontage();
+	
+	//设置材质
+	if (DissolveMaterialInstance)
+	{
+		DynamicDissolveMaterialInstance = UMaterialInstanceDynamic::Create(DissolveMaterialInstance, this);
+		GetMesh()->SetMaterial(0, DynamicDissolveMaterialInstance);
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Dissolve"), 0.55f);
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Grow"), 200.0f);
+	}
+	StartDissolve();
+}
+```
+2. 曲线
+时间轴的曲线由UE中绘制，之后利用属性说明符UPROPERTY(EditAnywhere)进行添加
+3. 材质
+当死亡时，切换Actor的表面材质，使得其变为我们设置的材质，从而可以在代码中利用时间轴修改
+```c++
+//.h
+	//动态材质用于在代码中操作变量 change at Runtime
+	UPROPERTY(VisibleAnywhere, Category = Elim)
+		UMaterialInstanceDynamic* DynamicDissolveMaterialInstance;
+	//静态材质用于在蓝图中设置，是角色本身的材质实例 set on the BP,use for set the dynamic Material
+	UPROPERTY(EditAnywhere, Category = Elim)
+		UMaterialInstance* DissolveMaterialInstance;
+//.cpp
+void AXCharacter::MulticastElim_Implementation()
+{
+	bElimmed = true;
+	PlayElimMontage();
+	
+	//设置材质
+	if (DissolveMaterialInstance)
+	{
+		DynamicDissolveMaterialInstance = UMaterialInstanceDynamic::Create(DissolveMaterialInstance, this);
+		GetMesh()->SetMaterial(0, DynamicDissolveMaterialInstance);
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Dissolve"), 0.55f);
+		DynamicDissolveMaterialInstance->SetScalarParameterValue(TEXT("Grow"), 200.0f);
+	}
+	StartDissolve();
+}
+```
+DissolveMaterialInstance用于设置初始材质，也可以选择硬编码直接设置动态材质，然后到死亡时替换。
+
+# 死亡后禁用移动等
+禁用移动和胶囊体碰撞都需要写在多播RPC里面
+但是dettach武器只需要通过服务器Elim调用就就可以了，因为武器本身就设置了可复制的属性。
+在武器父类中，利用之前的枚举和switch编写当武器丢掉后的一些碰撞修改比如胶囊体，网格之类的。因为武器状态我们定义为了一个具有属性复制属性的变量，
+所以在武器父类中定义函数Drop首先改变武器枚举中的当前变量，并调用设置状态函数执行switch语句，对网格体等的碰撞进行修改，然后Detach，**最重要是要记得将这把武器的Owner设为空 setowner(nullptr)**，之后在角色代码中调用Drop
+1. 注意
+	在战斗组件的装备武器函数中，我们最开始只在服务器上对武器的状态进行了设置和武器的附加。但是由于网络的原因，先后顺序并不可靠，所以需要在客户端再写一遍状态的修改和武器附加，避免执行了武器附加但网格体组件这些还未修改
+	
+# 增加死亡动画
+增加了一个机器人用于播放粒子特效，初始化放在多播死亡RPC中，当Actor死亡才会出现这个特效，值得注意的是该机器人的销毁，最开始是想通过角色定时器的销毁流程进行销毁，但由于定时器流程是写在服务器上的并没有使用多播RPC，所以客户端会一致存在不会销毁
+可以使用之前子弹销毁的方法，通过重写Destroyed()函数，因为其自身就会复制到每个客户端，所以在角色类中重写Destroyed()函数，其内部语句就是调用这个机器人粒子特效的销毁。

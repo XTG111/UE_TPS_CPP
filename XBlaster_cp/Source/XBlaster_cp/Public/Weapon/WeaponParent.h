@@ -107,6 +107,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 		bool bAutomatic = true;
 
+	//丢掉武器
+	void Drop();
+
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点
 	UFUNCTION()

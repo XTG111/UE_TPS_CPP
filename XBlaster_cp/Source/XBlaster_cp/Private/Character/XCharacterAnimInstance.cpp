@@ -60,6 +60,9 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	//是否能够旋转根骨骼
 	bRoatetRootBone = XCharacter->ShouldRotateRootBone();
 
+	//是否死亡
+	bElimmed = XCharacter->IsElimmed();
+
 	//控制持枪移动
 	//鼠标的旋转 controlRotation
 	FRotator AimRotation = XCharacter->GetBaseAimRotation();

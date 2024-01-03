@@ -84,10 +84,14 @@ void AWeaponParent::OnRep_WeponState()
 		break;
 	case EWeaponState::EWS_Equipped:
 		ShowPickUpWidget(false);
-		
-		//SphereComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WeaponMesh->SetSimulatePhysics(false);
+		WeaponMesh->SetEnableGravity(false);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		break;
 	case EWeaponState::EWS_Dropped:
+		WeaponMesh->SetSimulatePhysics(true);
+		WeaponMesh->SetEnableGravity(true);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		break;
 	case EWeaponState::EWS_MAX:
 		break;
@@ -109,8 +113,18 @@ void AWeaponParent::SetWeaponState(EWeaponState State)
 		ShowPickUpWidget(false);
 		//½ûÓÃÇòÌåÅö×²
 		SphereComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WeaponMesh->SetSimulatePhysics(false);
+		WeaponMesh->SetEnableGravity(false);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		break;
 	case EWeaponState::EWS_Dropped:
+		if (HasAuthority())
+		{
+			SphereComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		}
+		WeaponMesh->SetSimulatePhysics(true);
+		WeaponMesh->SetEnableGravity(true);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		break;
 	case EWeaponState::EWS_MAX:
 		break;
@@ -150,6 +164,14 @@ void AWeaponParent::Fire(const FVector& HitTarget)
 			}
 		}
 	}
+}
+
+void AWeaponParent::Drop()
+{
+	SetWeaponState(EWeaponState::EWS_Dropped);
+	FDetachmentTransformRules DetachRules(EDetachmentRule::KeepWorld, true);
+	WeaponMesh->DetachFromComponent(DetachRules);
+	SetOwner(nullptr);
 }
 
 void AWeaponParent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
