@@ -31,6 +31,9 @@ public:
 	UFUNCTION()
 	void ReceivedDamage(float Damage, AController* InstigatorController);
 
+	FORCEINLINE float GetMaxHealth() const { return MAXHealth; }
+	FORCEINLINE float GetHealth() const { return Health; }
+
 private:
 	//Health
 	UPROPERTY(EditAnywhere, Category = "Player State")

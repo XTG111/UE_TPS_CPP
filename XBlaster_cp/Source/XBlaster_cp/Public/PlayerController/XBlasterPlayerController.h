@@ -15,7 +15,11 @@ class XBLASTER_CP_API AXBlasterPlayerController : public APlayerController
 	GENERATED_BODY()
 public:
 	//…Ë÷√Health
-	void SetHealth(float Health, float MaxHealth);
+	void SetHUDHealth(float Health, float MaxHealth);
+
+	void OnPossess(APawn* InPawn) override;
+
+	void SetHUDScore(float Score);
 
 protected:
 	virtual void BeginPlay() override;

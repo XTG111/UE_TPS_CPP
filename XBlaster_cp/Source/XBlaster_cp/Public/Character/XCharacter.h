@@ -59,6 +59,10 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 		void MulticastElim();
 
+	//初始化PlayerState,用来更新对应的HUD,需要Tick检测，因为游戏的第一帧不会初始化PlayerState所以无法用BeginPlay进行初始化；
+	//该函数将用于初始化任何无法在第一帧初始化的类
+	void PollInit();
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -217,6 +221,9 @@ private:
 	//ElimBot在客户端的消失，利用Destroyed()
 	virtual void Destroyed() override;
 
+	//为角色初始化PlayerState
+	class AXBlasterPlayerState* XBlasterPlayerState;
+
 public:	
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
 		bool bUnderJump = false;
@@ -255,5 +262,8 @@ public:
 	FORCEINLINE bool ShouldRotateRootBone() const { return bRotateRootBone; }
 	FORCEINLINE bool IsElimmed() const { return bElimmed; }
 
+	//获取玩家属性组件
+	UXPropertyComponent* GetPropertyComp();
+	//获取玩家控制器
 	AXBlasterPlayerController* GetXBlasterPlayerCtr();
 };

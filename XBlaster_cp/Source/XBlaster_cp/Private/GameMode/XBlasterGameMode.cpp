@@ -6,12 +6,21 @@
 #include "PlayerController/XBlasterPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
+#include "XPlayerState/XBlasterPlayerState.h"
 
 void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlasterPlayerController* VictimController, AXBlasterPlayerController* AttackerController)
 {
 	if (ElimmedCharacter)
 	{
 		ElimmedCharacter->Elim();
+	}
+	//当玩家被击败，获取击杀玩家的控制器利用控制器获取PlayerState
+	AXBlasterPlayerState* AttackPlayerState = AttackerController ? Cast<AXBlasterPlayerState>(AttackerController->PlayerState) : nullptr;
+	AXBlasterPlayerState* VictimPlayerState = VictimController ? Cast<AXBlasterPlayerState>(VictimController->PlayerState) : nullptr;
+	
+	if (AttackPlayerState && AttackPlayerState != VictimPlayerState)
+	{
+		AttackPlayerState->AddToScore(1.f);
 	}
 }
 

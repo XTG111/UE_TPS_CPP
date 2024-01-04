@@ -1506,3 +1506,42 @@ DissolveMaterialInstance用于设置初始材质，也可以选择硬编码直�
 # 增加死亡动画
 增加了一个机器人用于播放粒子特效，初始化放在多播死亡RPC中，当Actor死亡才会出现这个特效，值得注意的是该机器人的销毁，最开始是想通过角色定时器的销毁流程进行销毁，但由于定时器流程是写在服务器上的并没有使用多播RPC，所以客户端会一致存在不会销毁
 可以使用之前子弹销毁的方法，通过重写Destroyed()函数，因为其自身就会复制到每个客户端，所以在角色类中重写Destroyed()函数，其内部语句就是调用这个机器人粒子特效的销毁。
+
+# OnPosses
+当一个角色控制器需要取请求控制一个Pawn时需要重写这个函数APlayerController::OnPossess。
+当玩家重生时，角色控制器不会主动对重生角色的控制，导致UI绘制失败，就像如果我们游戏最开始不在Beginplay上调用UpdateHUD，那么角色控制器中的血量不会得到更新。我们在UpdateHUD里面的工作是将当前的控制器类型转换为了我们设置的，然后调用里面的绘制函数
+重写OnPossess相当于将重生的角色绑定到我们编写的角色控制器上，从而通过角色控制器设置HUD上的值
+OnPossese里面基本代码就是先解绑如果有其他控制器，然后将调用这个函数的类绑定给Pawn
+```c++
+		if (GetPawn() && bNewPawn)
+		{
+			UnPossess();
+		}
+
+		if (PawnToPossess->Controller != NULL)
+		{
+			PawnToPossess->Controller->UnPossess();
+		}
+
+		PawnToPossess->PossessedBy(this);
+```
+
+# PlayerState类的网络同步
+PlayerState保存玩家自己的信息
+在PlayerState的基类，UE已经定义得分和属性复制函数等一系列方法和变量，我们只需要重写就可以了。
+下面来设置得分变化。
+1. PlayerState会保存当前玩家的状态存储在服务器上，即使玩家死亡，只要没有退出游戏，这个PlayerState就不会被CG
+2. 通过PlayerState可以获取到当前对应的玩家GetPawn()，利用玩家获得控制器Character->Controller()
+3. 设置分数的更新，OnRep只会在客户端上被调用，所以需要新建一个服务器上处理得分并绘制UI的操作
+4. 绘制UI，我们绘制UI的逻辑就是widget->HUD->PlayerController->被其他类调用
+	a. widget就是我们在UE中创建的面板这些
+	b. 利用HUD Add To ViewPort
+	c. PlayerController可以设置HUD的参数从而更新HUD中的Widget
+	- 在这里当我们得分了就需要更新widget所以在playerstate中调用contorller中的更新函数
+5. GameMode游戏规则，何时进行得分操作，当一个角色死亡时进行，利用创建的Elimmed函数中有攻击者和被攻击者的控制器，获取对应的PlayerState(Controller->PlayerState)
+在这个函数中调用PlayerState中的改变分数的函数
+6. 为角色添加PlayerState
+新建一个PlayerState类，但需要注意的是PlayerState不能在BeginPlay的时候初始化，因为在游戏开始的第一帧其并不能被创建。所以我们定义了一个函数专门用来处理这些不能在第一帧被创建的类，然后在tick中调用，如果其不为空就跳过创建。当为空时，调用PlayerState里面的AddToScore函数初始化得分为0，同时传给Controller使得绘制widget。
+7. 注意PlayerState里面的Score为私有变量所以最好利用SetScore()和GetScore()来设置
+
+

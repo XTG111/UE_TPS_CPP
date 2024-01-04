@@ -6,6 +6,7 @@
 #include "HUD/CharacterOverlayWidget.h"
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
+#include "Character/XCharacter.h"
 
 void AXBlasterPlayerController::BeginPlay()
 {
@@ -14,7 +15,7 @@ void AXBlasterPlayerController::BeginPlay()
 	XBlasterHUD = Cast<AXBlasterHUD>(GetHUD());
 }
 
-void AXBlasterPlayerController::SetHealth(float Health, float MaxHealth)
+void AXBlasterPlayerController::SetHUDHealth(float Health, float MaxHealth)
 {
 	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
 
@@ -28,5 +29,30 @@ void AXBlasterPlayerController::SetHealth(float Health, float MaxHealth)
 		XBlasterHUD->CharacterOverlayWdg->HealthBar->SetPercent(HealthPercent);
 		FString HealthText = FString::Printf(TEXT("%d/%d"), FMath::CeilToInt(Health), FMath::CeilToInt(MaxHealth));
 		XBlasterHUD->CharacterOverlayWdg->HealthText->SetText(FText::FromString(HealthText));
+	}
+}
+
+void AXBlasterPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+	AXCharacter* XCharacter = Cast<AXCharacter>(InPawn);
+
+	if (XCharacter && XCharacter->GetPropertyComp())
+	{
+		SetHUDHealth(XCharacter->GetPropertyComp()->GetHealth(), XCharacter->GetPropertyComp()->GetMaxHealth());
+	}
+}
+
+void AXBlasterPlayerController::SetHUDScore(float Score)
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->ScoreAmount;
+	if (bHUDvalid)
+	{
+		FString ScoreText = FString::Printf(TEXT("%d"), FMath::FloorToInt(Score));
+		XBlasterHUD->CharacterOverlayWdg->ScoreAmount->SetText(FText::FromString(ScoreText));
 	}
 }

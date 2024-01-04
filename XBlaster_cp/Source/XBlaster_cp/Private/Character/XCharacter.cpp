@@ -21,6 +21,7 @@
 #include "GameMode/XBlasterGameMode.h"
 #include "Sound/SoundCue.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "XPlayerState/XBlasterPlayerState.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -146,6 +147,20 @@ void AXCharacter::Tick(float DeltaTime)
 
 	}
 	HideCameraIfCharacterClose();
+	PollInit();
+}
+
+//初始化任何无法在第一帧初始化的类
+void AXCharacter::PollInit()
+{
+	if (XBlasterPlayerState == nullptr)
+	{
+		XBlasterPlayerState = GetPlayerState<AXBlasterPlayerState>();
+		if (XBlasterPlayerState)
+		{
+			XBlasterPlayerState->AddToScore(0.f);
+		}
+	}
 }
 
 // Called to bind functionality to input
@@ -578,7 +593,7 @@ void AXCharacter::UpdateHUDHealth()
 	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(Controller) : XBlasterPlayerController;
 	if (XBlasterPlayerController)
 	{
-		XBlasterPlayerController->SetHealth(PropertyComp->Health, PropertyComp->MAXHealth);
+		XBlasterPlayerController->SetHUDHealth(PropertyComp->Health, PropertyComp->MAXHealth);
 	}
 }
 
@@ -659,6 +674,11 @@ void AXCharacter::Destroyed()
 	{
 		ElimBotComp->DestroyComponent();
 	}
+}
+
+UXPropertyComponent* AXCharacter::GetPropertyComp()
+{
+	return PropertyComp;
 }
 
 //溶解死亡
