@@ -95,4 +95,8 @@ private:
 	//控制是否死亡
 	UPROPERTY(BlueprintReadOnly, Category = Elimm, meta = (AllowPrivateAccess = "true"))
 		bool bElimmed;
+
+	//是否禁用IK
+	UPROPERTY(BlueprintReadOnly, Category = IK, meta = (AllowPrivateAccess = "true"))
+		bool bUseFABRIK;
 };

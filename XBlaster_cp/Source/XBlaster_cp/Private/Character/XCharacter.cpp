@@ -22,6 +22,7 @@
 #include "Sound/SoundCue.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "XPlayerState/XBlasterPlayerState.h"
+#include "XBlaster_cp/XTypeHeadFile/WeaponTypes.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -159,6 +160,7 @@ void AXCharacter::PollInit()
 		if (XBlasterPlayerState)
 		{
 			XBlasterPlayerState->AddToScore(0.f);
+			XBlasterPlayerState->AddToDefeats(0);
 		}
 	}
 }
@@ -179,6 +181,7 @@ void AXCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	PlayerInputComponent->BindAction("Aim", IE_Released, this, &AXCharacter::AimToRelaxMode);
 	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AXCharacter::Fireing);
 	PlayerInputComponent->BindAction("Fire", IE_Released, this, &AXCharacter::ReFired);
+	PlayerInputComponent->BindAction("ReloadWeapon", IE_Pressed, this, &AXCharacter::ReloadWeapon);
 }
 
 void AXCharacter::MoveForward(float value)
@@ -256,6 +259,14 @@ void AXCharacter::StopJumping()
 {
 	Super::StopJumping();
 	bUnderJump = false;
+}
+
+void AXCharacter::ReloadWeapon()
+{
+	if (CombatComp)
+	{
+		CombatComp->ReloadWeapon();
+	}
 }
 
 
@@ -510,7 +521,7 @@ void AXCharacter::PlayFireMontage(bool bAiming)
 		return;
 	}
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance && CombatComp->bFired)
+	if (AnimInstance && CombatComp->bFired && FireMontage)
 	{
 		AnimInstance->Montage_Play(FireMontage);
 		FName SectionName;
@@ -526,7 +537,7 @@ void AXCharacter::PlayHitReactMontage()
 		return;
 	}
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance)
+	if (AnimInstance&& HitReactMontage)
 	{
 		AnimInstance->Montage_Play(HitReactMontage);
 		FName SectionName("FromFront");
@@ -540,6 +551,27 @@ void AXCharacter::PlayElimMontage()
 	if (AnimInstance&&ElimMontage)
 	{
 		AnimInstance->Montage_Play(ElimMontage);
+	}
+}
+
+void AXCharacter::PlayReloadMontage()
+{
+	if (CombatComp == nullptr || CombatComp->EquippedWeapon == nullptr)
+	{
+		return;
+	}
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && ReloadMontage)
+	{
+		AnimInstance->Montage_Play(ReloadMontage);
+		FName SectionName;
+		switch (CombatComp->EquippedWeapon->WeaponType)
+		{
+		case EWeaponType::EWT_AssaultRifle:
+			SectionName = FName("ReloadRifle");
+			break;
+		}
+		AnimInstance->Montage_JumpToSection(SectionName);
 	}
 }
 
@@ -616,6 +648,13 @@ void AXCharacter::Elim()
 //需要传给其他客户端的变化
 void AXCharacter::MulticastElim_Implementation()
 {
+	//当该Actor死亡时，调用控制器，设置其子弹数为空
+	if (XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHUDWeaponAmmo(0);
+		XBlasterPlayerController->SetHUDCarriedAmmo(0);
+	}
+
 	bElimmed = true;
 	PlayElimMontage();
 
@@ -697,6 +736,12 @@ void AXCharacter::StartDissolve()
 		DissolveTimeline->AddInterpFloat(DissolveCurve, DissolveTrack);
 		DissolveTimeline->Play();
 	}
+}
+
+ECombatState AXCharacter::GetCombateState() const
+{
+	if (CombatComp == nullptr) return ECombatState::ECS_MAX;
+	return CombatComp->CombatState;
 }
 
 

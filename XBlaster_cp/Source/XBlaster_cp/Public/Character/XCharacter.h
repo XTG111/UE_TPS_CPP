@@ -10,6 +10,7 @@
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
 #include "Interfaces/InteractWithCrosshairInterface.h"
 #include "Components/TimelineComponent.h"
+#include "XBlaster_cp/XTypeHeadFile/CombatState.h"
 #include "XCharacter.generated.h"
 
 
@@ -41,6 +42,8 @@ public:
 	void PlayHitReactMontage();
 	//死亡动画
 	void PlayElimMontage();
+	//换弹动画
+	void PlayReloadMontage();
 
 	//控制模拟机器上的转向动画，repnotify;
 	virtual void OnRep_ReplicatedMovement() override;
@@ -78,6 +81,7 @@ protected:
 	void AimToRelaxMode();
 	virtual void Jump() override;
 	virtual void StopJumping() override;
+	void ReloadWeapon();
 	UPROPERTY(BlueprintReadOnly, Category = MoveFunc)
 		float ForwardValue;
 	UPROPERTY(BlueprintReadOnly, Category = MoveFunc)
@@ -117,9 +121,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Combat)
 		class UAnimMontage* FireMontage;
 	UPROPERTY(EditAnywhere, Category = Combat)
-		class UAnimMontage* HitReactMontage;
+		UAnimMontage* HitReactMontage;
 	UPROPERTY(EditAnywhere, Category = Combat)
-		class UAnimMontage* ElimMontage;
+		UAnimMontage* ElimMontage;
+	UPROPERTY(EditAnywhere, Category = Combat)
+		UAnimMontage* ReloadMontage;
 
 
 private:
@@ -141,7 +147,7 @@ private:
 		void OnRep_OverlappingWeapon(AWeaponParent* LastWeapon);
 
 	//战斗组件设置
-	UPROPERTY(VisibleAnywhere,Category = Combat)
+	UPROPERTY(VisibleAnywhere,Category = Combat,BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		class UCombatComponent* CombatComp;
 
 	//人物属性组件
@@ -173,7 +179,8 @@ private:
 	float CalculateVelocity();
 
 	//角色控制器
-	class AXBlasterPlayerController* XBlasterPlayerController;
+	UPROPERTY()
+		class AXBlasterPlayerController* XBlasterPlayerController;
 
 	//是否死亡
 	bool bElimmed = false;
@@ -222,7 +229,8 @@ private:
 	virtual void Destroyed() override;
 
 	//为角色初始化PlayerState
-	class AXBlasterPlayerState* XBlasterPlayerState;
+	UPROPERTY()
+		class AXBlasterPlayerState* XBlasterPlayerState;
 
 public:	
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
@@ -266,4 +274,6 @@ public:
 	UXPropertyComponent* GetPropertyComp();
 	//获取玩家控制器
 	AXBlasterPlayerController* GetXBlasterPlayerCtr();
+	//获取玩家此时是否在装弹，从而禁止动画中的IK
+	ECombatState GetCombateState() const;
 };

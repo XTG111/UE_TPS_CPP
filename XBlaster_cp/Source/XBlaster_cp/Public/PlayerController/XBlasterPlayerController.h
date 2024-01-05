@@ -19,7 +19,14 @@ public:
 
 	void OnPossess(APawn* InPawn) override;
 
+	//击杀数
 	void SetHUDScore(float Score);
+	//死亡数
+	void SetHUDDefeats(int32 Defeats);
+	//子弹数量
+	void SetHUDWeaponAmmo(int32 Ammo);
+	//备弹数
+	void SetHUDCarriedAmmo(int32 Ammo);
 
 protected:
 	virtual void BeginPlay() override;

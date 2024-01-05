@@ -22,6 +22,10 @@ void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlaste
 	{
 		AttackPlayerState->AddToScore(1.f);
 	}
+	if (VictimPlayerState)
+	{
+		VictimPlayerState->AddToDefeats(1);
+	}
 }
 
 void AXBlasterGameMode::RequestRespawn(AXCharacter* ElimmedCharacter, AController* ElimmedController)

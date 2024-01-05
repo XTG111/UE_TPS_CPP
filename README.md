@@ -619,8 +619,9 @@ void AWeaponParent::ShowPickUpWidget(bool bShowWidget)
 # RPC和属性复制
 两种服务器与客户端交互的方法，属性复制只能从服务器到客户端，也就是说Rep_Notify函数只会在客户端上实现，且必须在构造函数中开启bReplicates = true;或者对于某个组件使用SetIsReplicated(true)
 RPC是双向的，通过UFUCNTION()说明Sever还是Client
-
 任何逻辑都是服务器上运行。
+
+想将客户端的信息传递给服务器只能使用RPC，服务器向客户端传递可以使用RPC或者Rep_Notify也就是说，当一个客户端的状态要让所用客户端直到，那么必须先通过RPC传递给服务器，服务器再选择使用RPC或者Repnotify来传递给所有的客户端
 
 ## 属性复制的基本流程
 1. 设置要复制的类对象，或者组件的Replicate
@@ -1530,7 +1531,7 @@ OnPossese里面基本代码就是先解绑如果有其他控制器，然后将�
 PlayerState保存玩家自己的信息
 在PlayerState的基类，UE已经定义得分和属性复制函数等一系列方法和变量，我们只需要重写就可以了。
 下面来设置得分变化。
-1. PlayerState会保存当前玩家的状态存储在服务器上，即使玩家死亡，只要没有退出游戏，这个PlayerState就不会被CG
+1. PlayerState会保存当前玩家的状态存储在服务器上，即使玩家死亡，只要没有退出游戏，这个PlayerState就不会被GC
 2. 通过PlayerState可以获取到当前对应的玩家GetPawn()，利用玩家获得控制器Character->Controller()
 3. 设置分数的更新，OnRep只会在客户端上被调用，所以需要新建一个服务器上处理得分并绘制UI的操作
 4. 绘制UI，我们绘制UI的逻辑就是widget->HUD->PlayerController->被其他类调用
@@ -1544,4 +1545,121 @@ PlayerState保存玩家自己的信息
 新建一个PlayerState类，但需要注意的是PlayerState不能在BeginPlay的时候初始化，因为在游戏开始的第一帧其并不能被创建。所以我们定义了一个函数专门用来处理这些不能在第一帧被创建的类，然后在tick中调用，如果其不为空就跳过创建。当为空时，调用PlayerState里面的AddToScore函数初始化得分为0，同时传给Controller使得绘制widget。
 7. 注意PlayerState里面的Score为私有变量所以最好利用SetScore()和GetScore()来设置
 
+# 类指针对象使用UPROPERTY()
+对于类指针对象我们经常使用if来判断其是否为空指针，但是在UE中如果没有添加属性说明符，会导致其被GC机制放弃，从而被回收，这样该指针实际上并不是一个空指针在还没有初始化的时候，所以if(Ptr)可能永远为真。
+1. 第一种方法时在定义时初始化为nullptr;
+2. 第二种方法是添加UPROPERTY()属性说明符，被GC识别不会被回收，所以其最开始会是一个空指针。
 
+# 向PLayerState里面添加一个自定义状态变量
+1. 将变量属性声明为UPROPERTY(ReplicatedUsing = OnRep_FuncName)
+2. 重写GetLifeTimeRepli...函数，定义OnRep_FuncName，定义服务器处理函数
+3. 函数内部定义和Score类似
+
+# 为UI添加子弹
+需要主要更新的地方有两个：
+1. 每当开火子弹数减少，利用将子弹数设置为可复制的进行调用
+因为子弹是武器的所属，所以可以将子弹的计算和调用绘制UI放在武器类里面。本质上就是当子弹数发生变化时，调用绘制函数并广播。所以需要一个服务器处理函数（计算子弹数量和绘制），和一个repnotify函数（绘制）。然后在开火的时候调用。
+2. 当玩家装备武器，即武器的Owner发生变化时显示当前这把武器的子弹数，由于Owner本身是可复制的，所以重新OnRep_Owner()
+当角色拿到武器时，我们就需要更改UI上的子弹数
+也就是说当武器有owner的时候进行UI更改，我们调用绘制函数也是通过Character->Controller->Func来绘制的。而Owner本身是一个被定义为可复制的变量，拥有OnRep_Owner()。
+我们在战斗组件CombatComponet中通过装备武器函数为我们装备的武器设置了Owner此时Owner发生了改变。所以我们可以通过重载OnRep_Owner()来来实现当我们客户端角色装备了武器时的子弹数UI的绘制，然后在战斗组件上利用已装备武器EquippedWeapon这个变量调用OnRep_Owner这个函数实现服务器上的显示。
+
+# 角色死亡，替换武器后的子弹更新
+1. 重要的一点是，每当我们替换武器或者丢掉武器都需要将Owner，Character和Controller设为空
+2. 在我们的代码中我们死亡后会调用Drop函数，我们替换武器也使用Drop函数，Drop函数内会将Owner设为空，那我们还需要将Character和Controller也设置为空。
+3. 上述是服务器的流程逻辑，通过OnRep_Owner()我们还需要将客户端上的Character和Controller设置为空
+```c++
+//weapon.cpp
+void AWeaponParent::OnRep_Owner()
+{
+	Super::OnRep_Owner();
+	if (GetOwner() == nullptr)
+	{
+		XCharacter = nullptr;
+		XBlasterPlayerController = nullptr;
+	}
+	else
+	{
+		SetHUDAmmo();
+	}
+}
+```
+4. 上述只是清空了与HUD绑定的三个对象，还需要更新HUD，更新HUD是通过Controller操作的。可以利用播放死亡特效的多播RPC获取到死亡Actor的控制器，然后设置HUD=0;
+```c++
+//character.cpp
+void AXCharacter::MulticastElim_Implementation()
+{
+	//当该Actor死亡时，调用控制器，设置其子弹数为空
+	if (XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHUDWeaponAmmo(0);
+	}
+```
+
+# 控制是否能够开枪
+在战斗组件中设置一个判断能否开枪的函数，其返回值是子弹数和0的大小以及定时器的控制的或
+```C++
+EquippedWeapon->Ammo > 0 || !bCanFire;
+```
+然后将我们控制开枪的函数中的判断改为这个函数的返回值
+同样我们需要限制子弹数利用FMath::Clamp(A,B,C)，可以将返回值A限制在B-C之间
+```c++
+Ammo = FMath::Clamp(Ammo - 1, 0, MaxAmmo);
+//等价于
+//Ammo--;
+//0<Ammo<MaxAmmo
+```
+
+# 备弹和枪械类型的设置
+设置了当前角色对装备在手上的这类武器的剩余子弹数。该子弹数是可复制的，并且只会由服务器传给武器Owner的客户端。我们还为武器类型新建了一个枚举值，用来存储各种武器。
+并利用哈希表Map来存储武器类型(key)和它现在的子弹(value)
+因为备弹数相当于角色的一个战斗属性，所以将其写在CombatComponent中
+1. 在BeginPlay初始化Hash表，当装备武器的时候，通过当前武器的类型获取Hash表中对应的备弹数。然后绘制UI
+2. 客户端上的绘制，由于备弹数是可复制的利用Rep_Notify函数调用绘制函数从而进行绘制。
+
+# 换弹
+利用蒙太奇播放来实现换弹的动画，主要考虑几个问题
+增加了一个枚举值，用来确定当前枪械是在换弹还是空闲
+1. IK的限制
+由于我们使用了IK限制左手移动，所以当我们换弹时如果不接触IK将导致没法播放正确的动画，所以我们通过枚举值的改变，利用布尔混合姿势修改IK的使用
+2. 动画的传播，从服务器到客户端有两种方式前面已经学习了--RPC和属性复制(OnRep_Notify).
+RPC是客户端或者服务器上请求然后在服务器上调用，
+所以我们使用属性复制OnRep_Notify当枚举变量发生改变时，在客户端直接播放蒙太奇动画。
+3. 动画播放的优先级控制
+	a. 当我们动画播放完成要设置枚举变量为空闲这样才能在下一次Reload的时候正确播放蒙太奇动画，我们通过设置一个函数然后利用动画通知来在蓝图中调用它，从而实现状态的重置
+	b. 其次我们需要控制换弹时不能开枪，所以在控制开枪的bool函数中增加判断
+	```c++
+	return EquippedWeapon->Ammo > 0 && !bCanFire && CombatState == ECombatState::ECS_Unoccupied;
+	```
+	c. 还有就是开火的粒子特效也不能在换弹时播放
+	```c++
+	if (CharacterEx && CombatState == ECombatState::ECS_Unoccupied)
+	```
+	d. 设置OnRep_CombateState里面的switch因为我们完成了换弹切换了状态，这个函数就会被客户端调用，为了更好的实现可以添加当此时按下了鼠标左键可以开火的功能
+	```c++
+	void UCombatComponent::OnRep_CombatState()
+{
+	switch (CombatState)
+	{
+	case ECombatState::ECS_Unoccupied:
+		if (bFired)
+		{
+			ControlFire(bFired);
+		}
+		break;
+	case ECombatState::ECS_Reloading:
+		HandleReload();
+		break;
+	case ECombatState::ECS_MAX:
+		break;
+	default:
+		break;
+	}
+}
+	```
+	
+4. 换弹的整体流程：
+Character按键响应->调用CombatComp上的换弹函数->改变此时枪械状态->RPC设置服务器处理函数在服务器实现换弹动画的播放->OnRep_Notify实现所有客户端的状态同步->动画通知实现结束换弹后的状态重置
+5. 对换弹与开火冲突的解决
+	通过添加新建的枪械状态实现判断条件的增加，比如说在换弹时不能开火，换弹时接触IK绑定，换弹时不能有开火的粒子特效
+	结束换弹后，添加判断，判断当前的攻击键是否按下，按下就执行开火等等

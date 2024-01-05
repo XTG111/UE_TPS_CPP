@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "XBlaster_cp/XTypeHeadFile/WeaponTypes.h"
 #include "WeaponParent.generated.h"
 //作为武器父类被武器实例类继承
 
@@ -32,6 +33,7 @@ public:
 
 	//通过复制向客户端传递服务器的处理结果
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void OnRep_Owner() override;
 
 protected:
 	// Called when the game starts or when spawned
@@ -107,8 +109,28 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Combat")
 		bool bAutomatic = true;
 
+	//角色类和控制器用于绘制HUD
+	UPROPERTY()
+		class AXCharacter* XCharacter;
+	UPROPERTY()
+		class AXBlasterPlayerController* XBlasterPlayerController;
+
+	//子弹数量控制
+	UPROPERTY(EditAnywhere)
+		int32 MaxAmmo = 30;
+	UPROPERTY(EditAnywhere,ReplicatedUsing = OnRep_Ammo)
+		int32 Ammo = 30;
+	UFUNCTION()
+		void OnRep_Ammo();
+	void SpendRound();
+	void SetHUDAmmo();
+
 	//丢掉武器
 	void Drop();
+
+	//武器类型控制
+	UPROPERTY(EditAnywhere)
+		EWeaponType WeaponType;
 
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点

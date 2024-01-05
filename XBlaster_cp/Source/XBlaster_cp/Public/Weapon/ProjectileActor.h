@@ -40,7 +40,8 @@ public:
 	//子弹的运动粒子特效的添加
 	UPROPERTY(EditAnywhere)
 		class UParticleSystem* Tracer;
-	class UParticleSystemComponent* TracerComp;
+	UPROPERTY()
+		class UParticleSystemComponent* TracerComp;
 
 	//击中特效
 	UPROPERTY(EditAnywhere)

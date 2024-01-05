@@ -45,6 +45,6 @@ private:
 	float Health = 100.0f;
 	UFUNCTION()
 	void OnRep_HealthChange();	
-
-	class AXCharacter* XCharacter;
+	UPROPERTY()
+		class AXCharacter* XCharacter;
 };

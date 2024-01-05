@@ -10,6 +10,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Weapon/BulletShellActor.h"
 #include "Engine/SkeletalMeshSocket.h"
+#include "PlayerController/XBlasterPlayerController.h"
+#include "Character/XCharacter.h"
 
 // Sets default values
 AWeaponParent::AWeaponParent()
@@ -47,7 +49,9 @@ void AWeaponParent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AWeaponParent, WeaponState);
+	DOREPLIFETIME(AWeaponParent, Ammo);
 }
+
 
 // Called when the game starts or when spawned
 void AWeaponParent::BeginPlay()
@@ -164,6 +168,48 @@ void AWeaponParent::Fire(const FVector& HitTarget)
 			}
 		}
 	}
+	//开枪调用
+	SpendRound();
+}
+
+void AWeaponParent::SetHUDAmmo()
+{
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+	if (XCharacter)
+	{
+		XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(XCharacter->Controller) : XBlasterPlayerController;
+		if (XBlasterPlayerController)
+		{
+			XBlasterPlayerController->SetHUDWeaponAmmo(Ammo);
+		}
+	}
+
+}
+
+void AWeaponParent::OnRep_Ammo()
+{
+	SetHUDAmmo();
+}
+
+void AWeaponParent::SpendRound()
+{
+	Ammo = FMath::Clamp(Ammo - 1, 0, MaxAmmo);
+	SetHUDAmmo();
+}
+
+//重写Onwer，方便客户端及时响应
+void AWeaponParent::OnRep_Owner()
+{
+	Super::OnRep_Owner();
+	if (GetOwner() == nullptr)
+	{
+		XCharacter = nullptr;
+		XBlasterPlayerController = nullptr;
+	}
+	else
+	{
+		SetHUDAmmo();
+	}
 }
 
 void AWeaponParent::Drop()
@@ -172,11 +218,13 @@ void AWeaponParent::Drop()
 	FDetachmentTransformRules DetachRules(EDetachmentRule::KeepWorld, true);
 	WeaponMesh->DetachFromComponent(DetachRules);
 	SetOwner(nullptr);
+	XCharacter = nullptr;
+	XBlasterPlayerController = nullptr;
 }
 
 void AWeaponParent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	AXCharacter* XCharacter = Cast<AXCharacter>(OtherActor);
+	XCharacter = Cast<AXCharacter>(OtherActor);
 	if (XCharacter)
 	{
 		XCharacter->SetOverlappingWeapon(this);
@@ -185,7 +233,7 @@ void AWeaponParent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponen
 
 void AWeaponParent::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex)
 {
-	AXCharacter* XCharacter = Cast<AXCharacter>(OtherActor);
+	XCharacter = Cast<AXCharacter>(OtherActor);
 	if (XCharacter)
 	{
 		XCharacter->SetOverlappingWeapon(nullptr);

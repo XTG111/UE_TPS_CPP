@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "HUD/XBlasterHUD.h"
+#include "XBlaster_cp/XTypeHeadFile/WeaponTypes.h"
+#include "XBlaster_cp/XTypeHeadFile/CombatState.h"
 #include "CombatComponent.generated.h"
 
 
@@ -25,6 +27,10 @@ public:
 
 	//友元类，访问私有变量
 	friend class AXCharacter;
+
+	//结束装弹动画，修改状态为空CombatState
+	UFUNCTION(BlueprintCallable)
+		void FinishingReloading();
 
 protected:
 	// Called when the game starts
@@ -49,10 +55,16 @@ protected:
 	//RPC传递射击状态，传递是否开枪，和客户端准星位置
 	UFUNCTION(Server, Reliable)
 		void ServerFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
-
 	//Multicast RPC
 	UFUNCTION(NetMulticast, Reliable)
 		void MulticastFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
+
+	////RPC传递换弹动画
+	UFUNCTION(Server, Reliable)
+		void ServerReload();
+
+	//在服务器和客户端上所有的共享动作
+	void HandleReload();
 
 	//linetrace检测设计点
 	void TraceUnderCrosshairs(FHitResult& TraceHitResult);
@@ -66,15 +78,17 @@ private:
 		class AXCharacter* CharacterEx;
 
 	//声明一个控制器，用控制来调用HUDPlayer::Controller -->APlayerController::GetHUD()
-	class AXBlasterPlayerController* XBlasterPlayerController;
+	UPROPERTY()
+		class AXBlasterPlayerController* XBlasterPlayerController;
 	//存储HUD
-	class AXBlasterHUD* XBlasterHUD;
+	UPROPERTY()
+		class AXBlasterHUD* XBlasterHUD;
 
 
 	//装备上的武器实例
 	//EquippedWeapon用来判断是否装备武器，从而切换动画，需要赋值给客户端
 	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon,VisibleAnywhere)
-	class AWeaponParent* EquippedWeapon;
+		class AWeaponParent* EquippedWeapon;
 
 	//瞄准状态
 	UPROPERTY(Replicated, VisibleAnywhere)
@@ -120,12 +134,35 @@ private:
 	FTimerHandle FireTime;
 	//当前的开火定时器是否完成，不能这次没有走完就发射下一发子弹
 	bool bCanFire = true;
-
 	//定时器的开始和清除
 	void StartFireTimer();
 	void FireTimeFinished();
 
+	//当前装备在手上的武器备弹数
+	UPROPERTY(ReplicatedUsing = OnRep_CarriedAmmo)
+		int32 CarriedAmmo;
+	UFUNCTION()
+		void OnRep_CarriedAmmo();
+	//存储武器和对应的备弹数
+	TMap<EWeaponType, int32> CarriedAmmoMap;
+	//步枪备弹数初始值
+	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
+		int32 StartingARAmmo = 30;
+	//初始化Hash
+	void InitializeCarriedAmmo();	
+
+	//战斗状态是否换弹
+	UPROPERTY(ReplicatedUsing = OnRep_CombatState)
+	ECombatState CombatState = ECombatState::ECS_Unoccupied;
+	UFUNCTION()
+		void OnRep_CombatState();
 
 public:	
 	void EquipWeapon(class AWeaponParent* WeaponToEquip);
+	//是否还有足够的子弹
+	bool HaveAmmoCanFire();
+
+
+	//重新装弹
+	void ReloadWeapon();
 };

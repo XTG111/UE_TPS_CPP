@@ -54,7 +54,7 @@ void ABulletShellActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, 
 		UGameplayStatics::PlaySoundAtLocation(this, ShellSound, GetActorLocation());
 	}
 	//等待一段事件后调用销毁函数
-	GetWorldTimerManager().SetTimer(DestroyTimeControl, this, &ABulletShellActor::ClearTimerHandle_BulletShell, 3.0f, true);
+	GetWorldTimerManager().SetTimer(DestroyTimeControl, this, &ABulletShellActor::ClearTimerHandle_BulletShell, 1.0f, true);
 }
 
 void ABulletShellActor::ClearTimerHandle_BulletShell()

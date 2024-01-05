@@ -8,6 +8,7 @@
 #include "DrawDebugHelpers.h"
 #include <Kismet/KismetMathLibrary.h>
 #include "Engine/SkeletalMeshSocket.h"
+#include "XBlaster_cp/XTypeHeadFile/CombatState.h"
 
 void UXCharacterAnimInstance::NativeInitializeAnimation()
 {
@@ -122,4 +123,6 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 			RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRotation, DeltaTime, 20.f);
 		}
 	}
+
+	bUseFABRIK = XCharacter->GetCombateState() != ECombatState::ECS_Reloading;
 }

@@ -56,3 +56,45 @@ void AXBlasterPlayerController::SetHUDScore(float Score)
 		XBlasterHUD->CharacterOverlayWdg->ScoreAmount->SetText(FText::FromString(ScoreText));
 	}
 }
+
+void AXBlasterPlayerController::SetHUDDefeats(int32 Defeats)
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->DefeatsAmount;
+	if (bHUDvalid)
+	{
+		FString DefeatsText = FString::Printf(TEXT("%d"), FMath::FloorToInt(Defeats));
+		XBlasterHUD->CharacterOverlayWdg->DefeatsAmount->SetText(FText::FromString(DefeatsText));
+	}
+}
+
+void AXBlasterPlayerController::SetHUDWeaponAmmo(int32 Ammo)
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->WeaponAmmoAmount;
+	if (bHUDvalid)
+	{
+		FString WeaponAmmoText = FString::Printf(TEXT("%d"), FMath::FloorToInt(Ammo));
+		XBlasterHUD->CharacterOverlayWdg->WeaponAmmoAmount->SetText(FText::FromString(WeaponAmmoText));
+	}
+}
+
+void AXBlasterPlayerController::SetHUDCarriedAmmo(int32 Ammo)
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->CarriedAmmoAmount;
+	if (bHUDvalid)
+	{
+		FString CarriedAmmoText = FString::Printf(TEXT("%d"), FMath::FloorToInt(Ammo));
+		XBlasterHUD->CharacterOverlayWdg->CarriedAmmoAmount->SetText(FText::FromString(CarriedAmmoText));
+	}
+}

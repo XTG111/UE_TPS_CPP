@@ -50,8 +50,9 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
 	DOREPLIFETIME(UCombatComponent, bUnderAiming);
-	//DOREPLIFETIME(UCombatComponent, bFired);
-	//DOREPLIFETIME(UCombatComponent, BaseWalkSpeed);
+	//只对Owner客户端复制
+	DOREPLIFETIME_CONDITION(UCombatComponent, CarriedAmmo,COND_OwnerOnly);
+	DOREPLIFETIME(UCombatComponent, CombatState);
 	//DOREPLIFETIME(UCombatComponent, AimWalkSpeed);
 }
 
@@ -72,6 +73,11 @@ void UCombatComponent::BeginPlay()
 			CurrentFOV = DefaultFOV;
 		}
 	}	
+	//初始化角色持有枪械的备弹量
+	if (CharacterEx->HasAuthority())
+	{
+		InitializeCarriedAmmo();
+	}
 }
 
 void UCombatComponent::SetAiming(bool bIsAiming)
@@ -94,11 +100,22 @@ void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 	}
 }
 
+void UCombatComponent::InitializeCarriedAmmo()
+{
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_AssaultRifle, StartingARAmmo);
+}
+
 void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
 {
 	if (CharacterEx == nullptr || WeaponToEquip == nullptr)
 	{
 		return;
+	}
+
+	//当拥有武器丢下
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Drop();
 	}
 
 	//使用骨骼插槽设置武器位置
@@ -113,6 +130,20 @@ void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
 	//SetOwner中的形参Owner这个函数，UE已经默认了进行属性复制
 	//UPROPERTY(ReplicatedUsing = OnRep_Owner)
 	EquippedWeapon->SetOwner(CharacterEx);
+	EquippedWeapon->SetHUDAmmo();
+
+	//设置CarriedAmmo
+	if (CarriedAmmoMap.Contains(EquippedWeapon->WeaponType))
+	{
+		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->WeaponType];
+	}
+
+	//绘制备弹的UI
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+	if (XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
+	}
 
 	//拾取武器后切换控制
 	CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
@@ -153,16 +184,78 @@ void UCombatComponent::FireTimeFinished()
 	}
 }
 
+//同步备弹数
+void UCombatComponent::OnRep_CarriedAmmo()
+{
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+	if (XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+}
+
+//Server use
+void UCombatComponent::ReloadWeapon()
+{
+	if (CarriedAmmo > 0 && CombatState != ECombatState::ECS_Reloading)
+	{
+		ServerReload();
+	}
+}
+void UCombatComponent::ServerReload_Implementation()
+{
+	if (CharacterEx == nullptr) return;
+	CombatState = ECombatState::ECS_Reloading;
+	HandleReload();
+}
+
+//Client Use 通过RPC修改的CombatState播放动画
+void UCombatComponent::OnRep_CombatState()
+{
+	switch (CombatState)
+	{
+	case ECombatState::ECS_Unoccupied:
+		if (bFired)
+		{
+			ControlFire(bFired);
+		}
+		break;
+	case ECombatState::ECS_Reloading:
+		HandleReload();
+		break;
+	case ECombatState::ECS_MAX:
+		break;
+	default:
+		break;
+	}
+}
+
+void UCombatComponent::FinishingReloading()
+{
+	if (CharacterEx == nullptr) return;
+	if (CharacterEx->HasAuthority())
+	{
+		CombatState = ECombatState::ECS_Unoccupied;
+	}
+	if (bFired)
+	{
+		ControlFire(bFired);
+	}
+}
+
+void UCombatComponent::HandleReload()
+{
+	CharacterEx->PlayReloadMontage();
+}
+
+
 void UCombatComponent::ControlFire(bool bPressed)
 {
-	if (bCanFire)
+	if (HaveAmmoCanFire())
 	{
-		
-		//UE_LOG(LogTemp, Warning, TEXT("Check:%d"), CharacterEx->Check);
 		bCanFire = false;
 		if (bFired)
 		{
-			//CharacterEx->Check = 20.0f;
 			ServerFire(bFired, HitTarget);
 			if (EquippedWeapon)
 			{
@@ -171,9 +264,18 @@ void UCombatComponent::ControlFire(bool bPressed)
 		}
 		StartFireTimer();
 	}
-
 }
 
+bool UCombatComponent::HaveAmmoCanFire()
+{
+	if (EquippedWeapon == nullptr)
+	{
+		return false;
+	}
+	return EquippedWeapon->Ammo > 0 || !bCanFire && CombatState == ECombatState::ECS_Unoccupied;
+}
+
+//执行开枪
 void UCombatComponent::IsFired(bool bPressed)
 {
 	bFired = bPressed;
@@ -191,7 +293,8 @@ void UCombatComponent::MulticastFire_Implementation(bool bPressed, const FVector
 	bFired = bPressed;
 	if (EquippedWeapon == nullptr) return;
 	//UE_LOG(LogTemp, Warning, TEXT("AO_YAW:%d"), bFired);
-	if (CharacterEx)
+	//开火粒子特效的播放
+	if (CharacterEx && CombatState == ECombatState::ECS_Unoccupied)
 	{
 		CharacterEx->PlayFireMontage(bUnderAiming);
 		if (bFired)
