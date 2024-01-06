@@ -703,6 +703,7 @@ void AXCharacter::ElimTimerFinished()
 	{
 		XBlasterGameMode->RequestRespawn(this, Controller);
 	}
+	GetWorldTimerManager().ClearTimer(ElimTimer);
 }
 
 //ElimBot的销毁由服务器传给客户端

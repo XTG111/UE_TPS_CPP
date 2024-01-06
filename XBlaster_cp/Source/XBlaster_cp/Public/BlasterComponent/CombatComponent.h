@@ -72,6 +72,9 @@ protected:
 	//添加准星 动态准星，涉及插值，所以传入参数float
 	void SetHUDCrossHairs(float Deltatime);
 
+	//计算重新装弹
+	int32 AmmountToReload();
+
 private:
 	//角色实例
 	UPROPERTY(VisibleAnywhere)
@@ -162,7 +165,9 @@ public:
 	//是否还有足够的子弹
 	bool HaveAmmoCanFire();
 
-
-	//重新装弹
+	//重新装弹的播放控制
 	void ReloadWeapon();
+
+	//更新子弹和备弹数
+	void UpdateAmmoAndCarriedAmmo();
 };

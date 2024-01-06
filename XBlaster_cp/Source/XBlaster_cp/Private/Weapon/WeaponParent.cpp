@@ -222,6 +222,12 @@ void AWeaponParent::Drop()
 	XBlasterPlayerController = nullptr;
 }
 
+void AWeaponParent::AddAmmo(int32 AmmoToAdd)
+{
+	Ammo = FMath::Clamp(Ammo - AmmoToAdd, 0, MaxAmmo);
+	SetHUDAmmo();
+}
+
 void AWeaponParent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	XCharacter = Cast<AXCharacter>(OtherActor);

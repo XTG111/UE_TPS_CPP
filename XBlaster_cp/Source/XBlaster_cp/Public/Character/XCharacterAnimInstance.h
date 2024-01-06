@@ -97,6 +97,12 @@ private:
 		bool bElimmed;
 
 	//是否禁用IK
-	UPROPERTY(BlueprintReadOnly, Category = IK, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(BlueprintReadOnly, Category = ControlIK, meta = (AllowPrivateAccess = "true"))
 		bool bUseFABRIK;
+	//换弹时禁止瞄准偏移
+	UPROPERTY(BlueprintReadOnly, Category = ContorlAimOffset, meta = (AllowPrivateAccess = "true"))
+		bool bUseAimOffset;
+	//换弹时不旋转右手
+	UPROPERTY(BlueprintReadOnly, Category = ContorlAimOffset, meta = (AllowPrivateAccess = "true"))
+		bool bTransformRightHand;
 };

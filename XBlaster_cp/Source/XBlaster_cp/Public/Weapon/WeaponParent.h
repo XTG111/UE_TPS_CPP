@@ -116,8 +116,10 @@ public:
 		class AXBlasterPlayerController* XBlasterPlayerController;
 
 	//子弹数量控制
+	//最大子弹数
 	UPROPERTY(EditAnywhere)
 		int32 MaxAmmo = 30;
+	//当前子弹数
 	UPROPERTY(EditAnywhere,ReplicatedUsing = OnRep_Ammo)
 		int32 Ammo = 30;
 	UFUNCTION()
@@ -131,6 +133,16 @@ public:
 	//武器类型控制
 	UPROPERTY(EditAnywhere)
 		EWeaponType WeaponType;
+
+	//换弹后更新子弹数
+	void AddAmmo(int32 AmmoToAdd);
+
+	//装备武器的音效
+	UPROPERTY(EditAnywhere)
+		class USoundCue* EquipSound;
+	//没子弹开火音效
+	UPROPERTY(EditAnywhere)
+		USoundCue* DryFireSound;
 
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点

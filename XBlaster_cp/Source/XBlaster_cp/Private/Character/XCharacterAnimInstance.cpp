@@ -125,4 +125,6 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	}
 
 	bUseFABRIK = XCharacter->GetCombateState() != ECombatState::ECS_Reloading;
+	bUseAimOffset = XCharacter->GetCombateState() != ECombatState::ECS_Reloading;
+	bTransformRightHand = XCharacter->GetCombateState() != ECombatState::ECS_Reloading;
 }

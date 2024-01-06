@@ -1663,3 +1663,84 @@ Character按键响应->调用CombatComp上的换弹函数->改变此时枪械状
 5. 对换弹与开火冲突的解决
 	通过添加新建的枪械状态实现判断条件的增加，比如说在换弹时不能开火，换弹时接触IK绑定，换弹时不能有开火的粒子特效
 	结束换弹后，添加判断，判断当前的攻击键是否按下，按下就执行开火等等
+
+# 自动换弹
+1. 在自动开火结束过后，判断是否现在还持有武器，如果当前武器子弹数为0那么可以调用Reload函数，在Reload函数里面我们判断了当前备弹量是否为0，然后进行换弹
+
+2. 当Actor拾取到了一把空的枪后会自动换弹，调用reload
+```c++
+
+	////auro reload when no ammo in automatic Fire
+	//if (EquippedWeapon->Ammo == 0)
+	//{
+	//	ReloadWeapon();
+	//}
+```
+
+# 游戏剩余时间的同步
+1. 游戏剩余时间 InitialTime - GetWorld()->GetSecondsTime()
+2. 时间同步
+	a. 客户端和服务器的传输时间
+	b. 服务器器会维护一个GetWorld()->GetSecondsTime()，客户端也会维护一个GetWorld()->GetSecondsTime()
+	c. 服务器开始的时间和客户端开始游戏的时间存在差异LoadingTime
+3. 计算LoadingTime
+	a. 利用RPC客户端向服务器请求当前的服务器上的时间，服务器再通过RPC返回时间
+	b. RPC的传播也需要时间
+	c. 服务器还需要添加ClientRPC到客户端
+4. 往返时间RoundTripTime
+	a. RTT = SeverRPCTime + ClientRPCTime
+	b. 客户端发送RPC包含自己当前的时间ClientLastTime，服务器返回RPC包含客户端传过来的值以及服务器发送RPC的时间SeverReceiptTime
+	c. RTT = ClientCurrentTime - ClientLastTime
+	d. 那么客户端就知道了自己接受到RPC后现在服务器的时间ServerCurrentTime = SeverReceiptTime+1/2 RTT
+	e. 所以服务器和客户端之间的时间差值就是：Client-SeverDeltaTime = ClientCurrentTime - ServerCurrentTime
+5. RPC
+```c++
+//客户端向服务器发送的RPC
+void AXBlasterPlayerController::ServerRequestServerTime_Implementation(float TimeOfClientRequese)
+{
+	//获取接受时服务器的时刻
+	float SeverTimeOfReceipt = GetWorld()->GetTimeSeconds();
+	ClientReportServerTime(TimeOfClientRequese, SeverTimeOfReceipt);
+}
+
+//服务器向客户端发送的RPC
+void AXBlasterPlayerController::ClientReportServerTime_Implementation(float TimeOfClientRequest, float TimeServerReceivedClientRequest)
+{
+	//计算RTT
+	float RoundTripTime = GetWorld()->GetTimeSeconds() - TimeOfClientRequest;
+	//ServerCurrentTime
+	float CurrentServerTime = TimeServerReceivedClientRequest + (0.5f * RoundTripTime);
+
+	ClientServerDelta = CurrentServerTime - GetWorld()->GetTimeSeconds();
+}
+```
+6. 计算当前服务器的实际时间
+```c++
+float AXBlasterPlayerController::GetSeverTime()
+{
+	//如果该控制器在服务器上
+	if (HasAuthority())
+	{
+		return GetWorld()->GetTimeSeconds();
+
+	}	
+	else 
+	{
+		return GetWorld()->GetTimeSeconds() + ClientServerDelta;
+	} 
+}
+```
+7. 为了能够在游戏开始快速的同步，利用ReceivedPlayer求取时间差
+```c++
+void AXBlasterPlayerController::ReceivedPlayer()
+{
+	Super::ReceivedPlayer();
+	//本地客户端的控制器
+	if (IsLocalController())
+	{
+		ServerRequestServerTime(GetWorld()->GetTimeSeconds());
+	}
+}
+```
+8. 保证时间正确性，利用Tick一定频率更新调用ServerRequestServerTime
+9. 绘制

@@ -12,6 +12,7 @@
 #include "DrawDebugHelpers.h"
 #include "PlayerController/XBlasterPlayerController.h"
 #include "Camera/CameraComponent.h"
+#include "Sound/SoundCue.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -145,6 +146,18 @@ void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
 		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
 	}
 
+	//播放装备武器时的音效
+	if (EquippedWeapon->EquipSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, EquippedWeapon->EquipSound, CharacterEx->GetActorLocation());
+	}
+
+	//auto reload when pickup an empty weapon if have carriedAmmo
+	if (EquippedWeapon->Ammo == 0)
+	{
+		ReloadWeapon();
+	}
+
 	//拾取武器后切换控制
 	CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
 	CharacterEx->bUseControllerRotationYaw = true;
@@ -162,6 +175,11 @@ void UCombatComponent::OnRep_EquippedWeapon()
 		if (HandSocket)
 		{
 			HandSocket->AttachActor(EquippedWeapon, CharacterEx->GetMesh());
+		}
+		//播放装备武器时的音效
+		if (EquippedWeapon->EquipSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, EquippedWeapon->EquipSound, CharacterEx->GetActorLocation());
 		}
 		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
 		CharacterEx->bUseControllerRotationYaw = true;
@@ -182,6 +200,12 @@ void UCombatComponent::FireTimeFinished()
 	{
 		ControlFire(bFired);
 	}
+
+	////auro reload when no ammo in automatic Fire
+	//if (EquippedWeapon->Ammo == 0)
+	//{
+	//	ReloadWeapon();
+	//}
 }
 
 //同步备弹数
@@ -202,9 +226,10 @@ void UCombatComponent::ReloadWeapon()
 		ServerReload();
 	}
 }
+
 void UCombatComponent::ServerReload_Implementation()
 {
-	if (CharacterEx == nullptr) return;
+	if (CharacterEx == nullptr && EquippedWeapon == nullptr) return;
 	CombatState = ECombatState::ECS_Reloading;
 	HandleReload();
 }
@@ -236,11 +261,34 @@ void UCombatComponent::FinishingReloading()
 	if (CharacterEx->HasAuthority())
 	{
 		CombatState = ECombatState::ECS_Unoccupied;
+		//在动画播放结束之后更新
+		UpdateAmmoAndCarriedAmmo();
 	}
 	if (bFired)
 	{
 		ControlFire(bFired);
 	}
+}
+
+void UCombatComponent::UpdateAmmoAndCarriedAmmo()
+{
+	if (CharacterEx == nullptr && EquippedWeapon == nullptr) return;
+
+	//补充子弹
+	int32 ReloadAmount = AmmountToReload();
+	if (CarriedAmmoMap.Contains(EquippedWeapon->WeaponType))
+	{
+		//更新备弹数以及UI显示的备弹数
+		CarriedAmmoMap[EquippedWeapon->WeaponType] -= ReloadAmount;
+		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->WeaponType];
+	}
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+	if (XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+
+	EquippedWeapon->AddAmmo(-ReloadAmount);
 }
 
 void UCombatComponent::HandleReload()
@@ -251,7 +299,7 @@ void UCombatComponent::HandleReload()
 
 void UCombatComponent::ControlFire(bool bPressed)
 {
-	if (HaveAmmoCanFire())
+	if (EquippedWeapon->Ammo > 0 || HaveAmmoCanFire())
 	{
 		bCanFire = false;
 		if (bFired)
@@ -264,6 +312,13 @@ void UCombatComponent::ControlFire(bool bPressed)
 		}
 		StartFireTimer();
 	}
+	else if (EquippedWeapon->Ammo == 0)
+	{
+		if (EquippedWeapon->DryFireSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, EquippedWeapon->DryFireSound, CharacterEx->GetActorLocation());
+		}
+	}
 }
 
 bool UCombatComponent::HaveAmmoCanFire()
@@ -272,7 +327,7 @@ bool UCombatComponent::HaveAmmoCanFire()
 	{
 		return false;
 	}
-	return EquippedWeapon->Ammo > 0 || !bCanFire && CombatState == ECombatState::ECS_Unoccupied;
+	return !bCanFire && CombatState == ECombatState::ECS_Unoccupied;
 }
 
 //执行开枪
@@ -429,6 +484,23 @@ void UCombatComponent::SetHUDCrossHairs(float Deltatime)
 		}
 	}
 }
+
+int32 UCombatComponent::AmmountToReload()
+{
+	if (EquippedWeapon == nullptr) return 0;
+	//计算需要补充多少弹量
+	int32 RoomInMag = EquippedWeapon->MaxAmmo - EquippedWeapon->Ammo;
+	//获取当前的备弹数
+	if (CarriedAmmoMap.Contains(EquippedWeapon->WeaponType))
+	{
+		int32 AmountCarried = CarriedAmmoMap[EquippedWeapon->WeaponType];
+		//计算待补充和备弹数的最小值，为实际可以增加的子弹数
+		int32 Least = FMath::Min(RoomInMag, AmountCarried);
+
+		return FMath::Clamp(RoomInMag, 0, Least);
+	}
+	return 0;
+} 
 
 //插值设置视角
 void UCombatComponent::InterpFOV(float Deltatime)
