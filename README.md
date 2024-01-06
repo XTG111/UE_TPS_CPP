@@ -1744,3 +1744,330 @@ void AXBlasterPlayerController::ReceivedPlayer()
 ```
 8. 保证时间正确性，利用Tick一定频率更新调用ServerRequestServerTime
 9. 绘制
+
+# AGameModeBase 和 AGameMode
+AGameMode是AGameModeBase的子类，其拥有MatchState
+1. MatchState控制GameState的整个顺序流程
+```c++
+/** Possible state of the current match, where a match is all the gameplay that happens on a single map */
+namespace MatchState
+{
+	extern ENGINE_API const FName EnteringMap;			// We are entering this map, actors are not yet ticking
+	extern ENGINE_API const FName WaitingToStart;		// Actors are ticking, but the match has not yet started
+	extern ENGINE_API const FName InProgress;			// Normal gameplay is occurring. Specific games will have their own state machine inside this state
+	extern ENGINE_API const FName WaitingPostMatch;		// Match has ended so we aren't accepting new players, but actors are still ticking
+	extern ENGINE_API const FName LeavingMap;			// We are transitioning out of the map to another location
+	extern ENGINE_API const FName Aborted;				// Match has failed due to network issues or other problems, cannot continue
+
+	// If a game needs to add additional states, you may need to override HasMatchStarted and HasMatchEnded to deal with the new states
+	// Do not add any states before WaitingToStart or after WaitingPostMatch
+}
+```
+2. HasMatchStarted() HasMatchEnded() GetMatchState() SetMatchState() 
+3. 利用OnMatchStateSet()来添加我们自定义的状态，可以在WaitingToStart之后，InProgress之前添加我们自定义的状态，在游戏结束后我们需要手动增加一个Cooldown在InProgress之后WaitingPostMatch之前
+4. 在InProgress之前可以拥有一个热身时间WarmupTime 在其之后有一个冷却时间CoolDownTime InProgress为MatchTime，还需要一个加载时间从登录地图到游戏地图
+5. GameState自带一个延迟启动属性bDelayedStart=true，如果其为真，那么在WaitingToStart阶段就已经启动了地图的加载，然后我们可以调用StartMatch进入，
+在设置了其为true后，关卡中会生成默认的pawn就是那个球体，当我们调用StartMatch进入游戏时，才会将Pawn改为我们设置好的PAWN类
+
+# 热身时间 before InProgress
+通过设置bDelayedStart=true，使得我们需要手动调用StartMatch才能进行比赛，以及生成角色和对角色的操控。
+在InProgress之前，当我们点击了运行按钮，会生成默认的Pawn类而不是我们给定的Pawn类，其可以有wasd操控移动。这是游戏中的等待状态。我们通过在GameMode里面设置热身时间和控制热身时间以及当前这个关卡的开始时间，可以实现倒计时结束后调用StartMatch()开始游戏。
+1. 首先需要构造函数设置bDelayedStart=true
+2. 定义一个热身时间10s，利用Tick函数更新记录时间，当记录时间为0时调用StartMatch.
+3. 需要注意的是GetWorld()->GetTimeSeconds()是游戏一开始就会运行，而我们需要的这个关卡的运行时间，所以我们可以定义一个变量当进入这个关卡是接受GetWorld()->GetTimeSeconds()，因为GameMode()这是对于我们这个Level才拥有的，所以利用BeginPlay设置进入关卡的时间
+```c++
+AXBlasterGameMode::AXBlasterGameMode()
+{
+	bDelayedStart = true;
+}
+
+void AXBlasterGameMode::BeginPlay()
+{
+	Super::BeginPlay();
+	LevelStartingTime = GetWorld()->GetTimeSeconds();
+}
+
+
+void AXBlasterGameMode::Tick(float DeltatTime)
+{
+	Super::Tick(DeltatTime);
+	if (MatchState == MatchState::WaitingToStart)
+	{
+		CountDownTime = WarmupTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
+		if (CountDownTime <= 0.f)
+		{
+			StartMatch();
+		}
+	}
+}
+```
+
+# HUD的绘制时机控制
+当我们使用了bDelayedStart,那么我们需要控制Actor的UI应该在StartMatch之后绘制。那么就需要将MatchState传入到PlayerController中。在GameMode里面利用重写OnMatchStateSet函数，可以利用PlayerController的迭代器来遍历这个GameMode管理的所有PlayerController然后调用PlayerController中的函数，将MatchState值传入
+```c++
+//GameMode
+void AXBlasterGameMode::OnMatchStateSet()
+{
+	Super::OnMatchStateSet();
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; It++)
+	{
+		AXBlasterPlayerController* XBlasterPlayerController = Cast<AXBlasterPlayerController>(*It);
+		if (XBlasterPlayerController)
+		{
+			XBlasterPlayerController->OnMatchStateSet(MatchState);
+		}
+	}
+}
+//PlayerController
+void AXBlasterPlayerController::OnMatchStateSet(FName State)
+{
+	MatchState = State;
+
+	//当状态是InProgress时，调用UI绘制
+	if (MatchState == MatchState::InProgress)
+	{
+		XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+		if (XBlasterHUD)
+		{
+			XBlasterHUD->AddCharacterOverlay();
+		}
+	}
+}
+void AXBlasterPlayerController::OnRep_MatchState()
+{
+	//当状态是InProgress时，调用UI绘制
+	if (MatchState == MatchState::InProgress)
+	{
+		XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+		if (XBlasterHUD)
+		{
+			XBlasterHUD->AddCharacterOverlay();
+		}
+	}
+}
+```
+需要通过属性赋值当MatchState改变时，让客户端也进行相应的操作，即当MatchState为InProgress时，调用绘制整体UI的函数。之前我们时防在整体XBlasterHUD的BeginPlay中进行的，会导致一开始就绘制。GameMode->PlayerController->XBlasterHUD。
+2. 出现的问题--我们设置的这个CharacterWidget的初始化还没有完成就会被PlayerController控制的Actor上的属性比如血量，击杀数等等赋值，导致整个UI的绘制出错。
+```c++
+//调整顺序后，下方值可能在绘制的时候为false,导致无法绘制
+bool bHUDvalid = XBlasterHUD &&	XBlasterHUD->CharacterOverlayWdg && XBlasterHUD->CharacterOverlayWdg->CarriedAmmoAmount;
+```
+就相当于在BeginPlay的时候，数据已经传入，而UI的控件的初始化是这一系列初始化的最后一个流程。而由于其又是只在BeginPlay里面运行一次，所以导致后面不会更新。
+所以我们需要自己增加初始化流程，就是当BeginPlay的时候在数据存入到一个中间变量中，然后可以每个tick去检测绘制数据，或者等初始完成之后绘制。
+```c++
+//存储数据
+void AXBlasterPlayerController::SetHUDDefeats(int32 Defeats)
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->DefeatsAmount;
+	if (bHUDvalid)
+	{
+		FString DefeatsText = FString::Printf(TEXT("%d"), FMath::FloorToInt(Defeats));
+		XBlasterHUD->CharacterOverlayWdg->DefeatsAmount->SetText(FText::FromString(DefeatsText));
+	}
+	else
+	{
+		bInitializeCharacterOverlay = true;
+		HUDDefeats = Defeats;//存储数据
+	}
+}
+
+//PollInit
+void AXBlasterPlayerController::PollInit()
+{
+	if (CharacterOverlayWdg == nullptr)
+	{
+		if (XBlasterHUD && XBlasterHUD->CharacterOverlayWdg)
+		{
+			CharacterOverlayWdg = XBlasterHUD->CharacterOverlayWdg;
+			if (CharacterOverlayWdg)
+			{
+				SetHUDHealth(HUDHealth, HUDMaxHealth);
+				SetHUDScore(HUDScore);
+				SetHUDDefeats(HUDDefeats);
+			}
+		}
+	}
+}
+
+//在Tick函数内调用 或者OnMatchStateSet()设置
+```
+这种情况只会发生在比如人的血量这种游戏开始就需要初始化的情况，对于枪械的子弹并不会有影响，因为其可以通过后面的拾取操作来进行更新。就如这个如果血量不需要初始化也不需要设置，因为之后会通过击中扣血更改HUD
+
+# WarmTime UI
+由于在WatingToStart的状态下HUD还没发初始化，所以不能通过一下方式进行绘制
+```c++
+	//
+	if (MatchState == MatchState::WaitingToStart)
+	{
+		XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+		if (XBlasterHUD)
+		{
+			XBlasterHUD->AddAnnouncement();
+		}
+	}
+```
+只有通过BeginPlay在我们初始化了HUD之后进行绘制。
+```c++
+void AXBlasterPlayerController::BeginPlay()
+{
+	Super::BeginPlay();
+
+	XBlasterHUD = Cast<AXBlasterHUD>(GetHUD());
+
+	//由于最开始HUD并不存在所以不能使用MatchState来判断绘制
+	if (XBlasterHUD)
+	{
+		XBlasterHUD->AddAnnouncement();
+	}
+}
+```
+当进入到InProgress状态后，将这个UI切换为Hidden模式
+
+# WarmUP时间的获得
+1. ClientRPC的使用场景：许多变量需要传递，并且只需要传递一次
+2. 更新时间就涉及到与GameMode进行通信，我们利用ServerRPC在服务器上获取到当前GameMode的所有时间，并且将热身UI的绘制放在这里来执行
+```c++
+void AXBlasterPlayerController::ServerCheckMatchState_Implementation()
+{
+	AXBlasterGameMode* GameMode = Cast<AXBlasterGameMode>(UGameplayStatics::GetGameMode(this));
+	if (GameMode)
+	{
+		WarmupTime = GameMode->WarmupTime;
+		MatchTime = GameMode->MatchTime;
+		LevelStartingTime = GameMode->LevelStartingTime;
+		MatchState = GameMode->GetMatchState();
+		
+		//将服务器上的状态传给客户端
+		ClientJoinMidGame(MatchState, WarmupTime, MatchTime, LevelStartingTime);
+
+		//由于最开始HUD并不存在所以不能使用MatchState来判断绘制
+		if (XBlasterHUD && MatchState == MatchState::WaitingToStart)
+		{
+			XBlasterHUD->AddAnnouncement();
+		}
+	}
+}
+```
+我们会在BeginPlay的时候调用这个RPC，使得每个客户端都会获得服务器上此时的状态
+```c++
+void AXBlasterPlayerController::ClientJoinMidGame_Implementation(FName StateOfMatch,float Warmup,float Match,float StartingTime)
+{
+	WarmupTime = Warmup;
+	MatchTime = Match;
+	LevelStartingTime = StartingTime;
+	MatchState = StateOfMatch;
+	OnMatchStateSet(MatchState);
+
+	if (XBlasterHUD && MatchState == MatchState::WaitingToStart)
+	{
+		XBlasterHUD->AddAnnouncement();
+	}
+}
+```
+现在我们获得了服务器上的时间和状态并客户端也接受到了这个时间和状态，我们就需要通过这个时间和状态来设置热身时间和游戏时间的变化。
+因为MatchState是一个可复制的变量，所以为了防止由于属性复制和RPC的带来的值冲突，所以我们在RPC中也调用属性复制的函数。传入最新的状态。
+也就是说RPC的优先级最高，一般来说属性复制都是最后校验的。但可能出现属性复制先进行的情况，所以为了使得所有更新发生，在ClientRPC中再调用一次属性复制的更新。
+当我们的状态时WaritingToStart时，倒计时初始时间就是WarmupTime - GetServerTime() + LevelStartingTime
+当我们的状态时InProgress时，倒计时初始时间就是WarmupTime + MatchTime - GetServerTime() + LevelStartingTime
+```c++
+void AXBlasterPlayerController::SetHUDTime()
+{
+	float TimeLeft = 0.f;
+	if (MatchState == MatchState::WaitingToStart)
+	{
+		TimeLeft = WarmupTime - GetSeverTime() + LevelStartingTime;
+	}
+	else if (MatchState == MatchState::InProgress)
+	{
+		TimeLeft = WarmupTime + MatchTime - GetSeverTime() + LevelStartingTime;
+	}
+	uint32 SecondsLeft = FMath::CeilToInt(TimeLeft);
+	//当SecondsLeft和上一次不相等时更新UI;
+	if (SecondsLeft != CountDownInt)
+	{
+		if (MatchState == MatchState::WaitingToStart)
+		{
+			SetHUDAnnouncementCountDown(SecondsLeft);
+		}
+		if (MatchState == MatchState::InProgress)
+		{
+			SetHUDGameTime(SecondsLeft);
+		}
+	}
+	CountDownInt = SecondsLeft;
+}
+```
+
+# 新增冷却状态到MatchState中
+利用namespace名称空间新添加和AGameMode基类里相同的FName属性值CoolDown，利用extern声明其可以在其他文件中定义，使用当前项目的API表示只能被这个项目使用，并且具有dll属性
+```c++
+
+//GameMode.h
+namespace MatchState
+{
+	extern XBLASTER_CP_API const FName CoolDown;//游戏结束，显示获胜玩家，并且开启显示结束缓冲时间
+}
+//GameMode.cpp
+namespace MatchState
+{
+	const FName CoolDown = FName("CoolDown");
+}
+```
+这样我们就为MatchState新增了一个状态，现在需要编写一下这个状态下客户端和服务器的响应，以及什么时候跳转到这个状态。
+首先是什么时候跳转到这个状态，我们在GameMode里面处理各种MatchState的切换，从热身时间开始到整局游戏结束，将跳转到CoolDown状态,利用Tick实时检测，由于我们是新增状态，没法像InProgress一样可以通过UE写好的函数切换，所以使用SetMatchState(...)
+```c++
+void AXBlasterGameMode::Tick(float DeltatTime)
+{
+	Super::Tick(DeltatTime);
+	if (MatchState == MatchState::WaitingToStart)
+	{
+		CountDownTime = WarmupTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
+		if (CountDownTime <= 0.f)
+		{
+			StartMatch();
+		}
+	}
+	else if (MatchState == MatchState::InProgress)
+	{
+		CountDownTime = WarmupTime + MatchTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
+		if (CountDownTime <= 0.f)
+		{
+			SetMatchState(MatchState::CoolDown);
+		}
+	}
+```
+当状态切换后，就需要到PlayerController中处理状态修改完成之后的功能切换，比如UI的绘制等等，我们参考UE的格式，为每个状态要处理的函数集合到一起定义为HandleStateName命名格式的函数，然后在属性复制发生改变时调用它们
+```c++
+void AXBlasterPlayerController::OnMatchStateSet(FName State)
+{
+	MatchState = State;
+
+	//当状态是InProgress时，调用UI绘制CharacterOverlay
+	if (MatchState == MatchState::InProgress)
+	{
+		HandleMatchHasStarted();
+	}
+	else if (MatchState == MatchState::CoolDown)
+	{
+		HandleCoolDown();
+	}
+}
+
+void AXBlasterPlayerController::OnRep_MatchState()
+{
+	//当状态是InProgress时，调用UI绘制
+	if (MatchState == MatchState::InProgress)
+	{
+		HandleMatchHasStarted();
+	}
+	else if (MatchState == MatchState::CoolDown)
+	{
+		HandleCoolDown();
+	}
+}
+```

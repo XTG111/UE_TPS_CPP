@@ -54,14 +54,14 @@ void AXBlasterPlayerController::ServerCheckMatchState_Implementation()
 		MatchTime = GameMode->MatchTime;
 		LevelStartingTime = GameMode->LevelStartingTime;
 		MatchState = GameMode->GetMatchState();
-		//OnMatchStateSet(MatchState);
+		OnMatchStateSet(MatchState);
 		ClientJoinMidGame(MatchState, WarmupTime, MatchTime, LevelStartingTime);
 
 		//由于最开始HUD并不存在所以不能使用MatchState来判断绘制
-		//if (XBlasterHUD && MatchState == MatchState::WaitingToStart)
-		//{
-		//	XBlasterHUD->AddAnnouncement();
-		//}
+		if (XBlasterHUD && MatchState == MatchState::WaitingToStart)
+		{
+			XBlasterHUD->AddAnnouncement();
+		}
 	}
 }
 
@@ -97,7 +97,8 @@ void AXBlasterPlayerController::Tick(float DeltaTime)
 	SetHUDTime();
 	//在游戏过程中每隔一段时间同步服务器时间到客户端
 	CheckTimeSync(DeltaTime);
-	PollInit();
+	//PollInit();
+
 }
 
 void AXBlasterPlayerController::CheckTimeSync(float DeltaTime)
@@ -130,7 +131,7 @@ void AXBlasterPlayerController::SetHUDTime()
 		{
 			SetHUDAnnouncementCountDown(SecondsLeft);
 		}
-		else if (MatchState == MatchState::InProgress)
+		if (MatchState == MatchState::InProgress)
 		{
 			SetHUDGameTime(SecondsLeft);
 		}
@@ -343,12 +344,12 @@ void AXBlasterPlayerController::HandleMatchHasStarted()
 	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
 	if (XBlasterHUD)
 	{
-		XBlasterHUD->AddCharacterOverlay();
 		if (XBlasterHUD->AnnouncementWdg)
 		{
 			XBlasterHUD->AnnouncementWdg->SetVisibility(ESlateVisibility::Hidden);
 		}
-		
+		XBlasterHUD->AddCharacterOverlay();
+		PollInit();
 	}
 }
 

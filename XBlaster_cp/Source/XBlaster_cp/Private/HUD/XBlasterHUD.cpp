@@ -4,11 +4,11 @@
 #include "HUD/XBlasterHUD.h"
 #include "HUD/CharacterOverlayWidget.h"
 #include "GameFramework/PlayerController.h"
+#include "HUD/AnnouncementWidget.h"
 
 void AXBlasterHUD::BeginPlay()
 {
 	Super::BeginPlay();
-	AddCharacterOverlay();
 }
 
 void AXBlasterHUD::AddCharacterOverlay()
@@ -18,6 +18,16 @@ void AXBlasterHUD::AddCharacterOverlay()
 	{
 		CharacterOverlayWdg = CreateWidget<UCharacterOverlayWidget>(PlayerController, CharacterOverlayWdgClass);
 		CharacterOverlayWdg->AddToViewport();
+	}
+}
+
+void AXBlasterHUD::AddAnnouncement()
+{
+	APlayerController* PlayerController = GetOwningPlayerController();
+	if (PlayerController && AnnouncementClass)
+	{
+		AnnouncementWdg = CreateWidget<UAnnouncementWidget>(PlayerController, AnnouncementClass);
+		AnnouncementWdg->AddToViewport();
 	}
 }
 

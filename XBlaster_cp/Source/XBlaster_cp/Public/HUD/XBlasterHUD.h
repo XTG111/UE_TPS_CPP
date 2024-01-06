@@ -39,11 +39,16 @@ public:
 	//»ÀŒÔ Ù–‘
 	UPROPERTY(EditAnywhere,Category = "Player State")
 		TSubclassOf<class UUserWidget> CharacterOverlayWdgClass;
-	class UCharacterOverlayWidget* CharacterOverlayWdg;
+	UPROPERTY()
+		class UCharacterOverlayWidget* CharacterOverlayWdg;
+
+	UPROPERTY(EditAnywhere, Category = "Warm State")
+		TSubclassOf<class UUserWidget> AnnouncementClass;
+	UPROPERTY()
+		class UAnnouncementWidget* AnnouncementWdg;
 
 protected:
 	virtual void BeginPlay() override;
-	void AddCharacterOverlay();
 
 private:
 	FHUDPackage HUDPackage;
@@ -56,5 +61,7 @@ private:
 
 public:
 	void SetHUDPackage(const FHUDPackage& Package);
+	void AddCharacterOverlay();
+	void AddAnnouncement();
 	
 };
