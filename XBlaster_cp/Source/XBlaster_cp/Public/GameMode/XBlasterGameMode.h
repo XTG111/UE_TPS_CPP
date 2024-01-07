@@ -53,4 +53,6 @@ protected:
 private:
 	//倒计时时间，当和WarmUpTime相等StartMatch()
 	float CountDownTime = 0.f;
+public:
+	FORCEINLINE float GetCountDownTime() const { return CountDownTime; }
 };

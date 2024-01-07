@@ -100,6 +100,9 @@ protected:
 	//模拟代理转向
 	void SimProxiesturn();
 
+	//转向功能集合
+	void RotateInPlace(float DeltaTime);
+
 
 	FRotator StartingAimRotation;
 
@@ -264,11 +267,13 @@ public:
 	FVector GetHitTarget() const;
 
 	//获取相机，传递给战斗组件，用于调整视角
+	UFUNCTION()
 	UCameraComponent* GetFollowCamera() const;
 
 	//设置是否能够传递根骨骼
 	FORCEINLINE bool ShouldRotateRootBone() const { return bRotateRootBone; }
 	FORCEINLINE bool IsElimmed() const { return bElimmed; }
+	FORCEINLINE UCombatComponent* GetCombatComp() const { return CombatComp; }
 
 	//获取玩家属性组件
 	UXPropertyComponent* GetPropertyComp();
@@ -276,4 +281,9 @@ public:
 	AXBlasterPlayerController* GetXBlasterPlayerCtr();
 	//获取玩家此时是否在装弹，从而禁止动画中的IK
 	ECombatState GetCombateState() const;
+
+public:
+	//控制哪些操作将被禁用
+	UPROPERTY(Replicated)
+		bool bDisableGamePlay = false;
 };

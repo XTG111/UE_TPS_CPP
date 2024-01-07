@@ -11,6 +11,10 @@
 #include "GameMode/XBlasterGameMode.h"
 #include "HUD/AnnouncementWidget.h"
 #include "Kismet/GameplayStatics.h"
+#include "BlasterComponent/CombatComponent.h"
+#include "Weapon/WeaponParent.h"
+#include "GameState/XBlasterGameState.h"
+#include "XPlayerState/XBlasterPlayerState.h"
 
 void AXBlasterPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -54,24 +58,20 @@ void AXBlasterPlayerController::ServerCheckMatchState_Implementation()
 		MatchTime = GameMode->MatchTime;
 		LevelStartingTime = GameMode->LevelStartingTime;
 		MatchState = GameMode->GetMatchState();
+		CoolDownTime = GameMode->CoolDownTime;
 		//OnMatchStateSet(MatchState);
-		ClientJoinMidGame(MatchState, WarmupTime, MatchTime, LevelStartingTime);
-
-		//由于最开始HUD并不存在所以不能使用MatchState来判断绘制
-		//if (XBlasterHUD && MatchState == MatchState::WaitingToStart)
-		//{
-		//	XBlasterHUD->AddAnnouncement();
-		//}
+		ClientJoinMidGame(MatchState, WarmupTime, MatchTime, LevelStartingTime,CoolDownTime);
 	}
 }
 
 //Client Accept Server's Time And State to fix Client Time And State
-void AXBlasterPlayerController::ClientJoinMidGame_Implementation(FName StateOfMatch,float Warmup,float Match,float StartingTime)
+void AXBlasterPlayerController::ClientJoinMidGame_Implementation(FName StateOfMatch,float Warmup,float Match,float StartingTime, float CoolDown)
 {
 	WarmupTime = Warmup;
 	MatchTime = Match;
 	LevelStartingTime = StartingTime;
 	MatchState = StateOfMatch;
+	CoolDownTime = CoolDown;
 	OnMatchStateSet(MatchState);
 
 	if (XBlasterHUD && MatchState == MatchState::WaitingToStart)
@@ -122,11 +122,26 @@ void AXBlasterPlayerController::SetHUDTime()
 	{
 		TimeLeft = WarmupTime + MatchTime - GetSeverTime() + LevelStartingTime;
 	}
+	else if (MatchState == MatchState::CoolDown)
+	{
+		TimeLeft = CoolDownTime + WarmupTime + MatchTime - GetSeverTime() + LevelStartingTime;
+	}
 	uint32 SecondsLeft = FMath::CeilToInt(TimeLeft);
+
+	//如果是服务器上运行那么直接调用GameMode里面的存储时间的变量，来设置SecondsLeft
+	if (HasAuthority())
+	{
+		XBlasterGameMode = XBlasterGameMode == nullptr ? Cast<AXBlasterGameMode>(UGameplayStatics::GetGameMode(this)) : XBlasterGameMode;
+		if (XBlasterGameMode)
+		{
+			SecondsLeft = FMath::CeilToInt(XBlasterGameMode->GetCountDownTime() + LevelStartingTime);
+		}
+	}
+	
 	//当SecondsLeft和上一次不相等时更新UI;
 	if (SecondsLeft != CountDownInt)
 	{
-		if (MatchState == MatchState::WaitingToStart)
+		if (MatchState == MatchState::WaitingToStart || MatchState == MatchState::CoolDown)
 		{
 			SetHUDAnnouncementCountDown(SecondsLeft);
 		}
@@ -283,6 +298,13 @@ void AXBlasterPlayerController::SetHUDGameTime(float CountDownTime)
 		XBlasterHUD->CharacterOverlayWdg->GameTimeText;
 	if (bHUDvalid)
 	{
+		if (CountDownTime < 0.f)
+		{
+			XBlasterHUD->CharacterOverlayWdg->GameTimeText->SetText(FText());
+			return;
+		}
+
+
 		//获取时间
 		int32 minutes = FMath::FloorToInt(CountDownTime / 60.f);
 		int32 seconds = CountDownTime - minutes * 60;
@@ -301,6 +323,13 @@ void AXBlasterPlayerController::SetHUDAnnouncementCountDown(float CountDownTime)
 		XBlasterHUD->AnnouncementWdg->WarmUpTimeText;
 	if (bHUDvalid)
 	{
+		//如果时间为负数则隐藏
+		if (CountDownTime < 0.f)
+		{
+			XBlasterHUD->AnnouncementWdg->WarmUpTimeText->SetText(FText());
+			return;
+		}
+
 		//获取时间
 		int32 minutes = FMath::FloorToInt(CountDownTime / 60.f);
 		int32 seconds = CountDownTime - minutes * 60;
@@ -343,7 +372,10 @@ void AXBlasterPlayerController::HandleMatchHasStarted()
 	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
 	if (XBlasterHUD)
 	{
-		XBlasterHUD->AddCharacterOverlay();
+		if (XBlasterHUD->CharacterOverlayWdg == nullptr)
+		{
+			XBlasterHUD->AddCharacterOverlay();
+		}
 		if (XBlasterHUD->AnnouncementWdg)
 		{
 			XBlasterHUD->AnnouncementWdg->SetVisibility(ESlateVisibility::Hidden);
@@ -361,7 +393,50 @@ void AXBlasterPlayerController::HandleCoolDown()
 		if (XBlasterHUD->AnnouncementWdg)
 		{
 			XBlasterHUD->AnnouncementWdg->SetVisibility(ESlateVisibility::Visible);
+			FString AnnouncementText("New Match Starts In: ");
+			if (XBlasterHUD->AnnouncementWdg->AnnouncementText)
+			{
+				XBlasterHUD->AnnouncementWdg->AnnouncementText->SetText(FText::FromString(AnnouncementText));
+			}
+
+			AXBlasterGameState* XBlasterGameState = Cast<AXBlasterGameState>(UGameplayStatics::GetGameState(this));
+			AXBlasterPlayerState* XBlasterPlayerState = GetPlayerState< AXBlasterPlayerState >();
+
+			if (XBlasterGameState && XBlasterPlayerState && XBlasterHUD->AnnouncementWdg->InfoText)
+			{
+				TArray<AXBlasterPlayerState*> TopPlayers = XBlasterGameState->TopScoringPlayers;
+				FString InfoTextString;
+				if (TopPlayers.Num() == 0)
+				{
+					InfoTextString = FString("There is No winner.");
+				}
+				else if (TopPlayers.Num() == 1 && TopPlayers[0] == XBlasterPlayerState)
+				{
+					InfoTextString = FString("You Are The Winner!");
+				}
+				else if (TopPlayers.Num() == 1)
+				{
+					InfoTextString = FString::Printf(TEXT("Winner: \n%s"),*TopPlayers[0]->GetPlayerName());
+				}
+				else if (TopPlayers.Num() > 1)
+				{
+					InfoTextString = FString("Players tied for the win:\n");
+					for (auto WinnerPlayer : TopPlayers)
+					{
+						InfoTextString.Append(FString::Printf(TEXT("%s\n"), *WinnerPlayer->GetPlayerName()));
+					}
+				}
+				XBlasterHUD->AnnouncementWdg->InfoText->SetText(FText::FromString(InfoTextString));
+			}
 		}
-		
+	}
+	AXCharacter* XCharacter = Cast<AXCharacter>(GetPawn());
+	if (XCharacter)
+	{
+		XCharacter->bDisableGamePlay = true;
+		if (XCharacter->GetCombatComp())
+		{
+			XCharacter->GetCombatComp()->IsFired(false);
+		}
 	}
 }

@@ -7,6 +7,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 #include "XPlayerState/XBlasterPlayerState.h"
+#include "GameState/XBlasterGameState.h"
 
 namespace MatchState
 {
@@ -59,6 +60,14 @@ void AXBlasterGameMode::Tick(float DeltatTime)
 			SetMatchState(MatchState::CoolDown);
 		}
 	}
+	else if (MatchState == MatchState::CoolDown)
+	{
+		CountDownTime = CoolDownTime + WarmupTime + MatchTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
+		if (CountDownTime <= 0.f)
+		{
+			RestartGame();
+		}
+	}
 }
 
 void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlasterPlayerController* VictimController, AXBlasterPlayerController* AttackerController)
@@ -71,9 +80,13 @@ void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlaste
 	AXBlasterPlayerState* AttackPlayerState = AttackerController ? Cast<AXBlasterPlayerState>(AttackerController->PlayerState) : nullptr;
 	AXBlasterPlayerState* VictimPlayerState = VictimController ? Cast<AXBlasterPlayerState>(VictimController->PlayerState) : nullptr;
 	
-	if (AttackPlayerState && AttackPlayerState != VictimPlayerState)
+	//GameState
+	AXBlasterGameState* XBlasterGameState = GetGameState < AXBlasterGameState >();
+
+	if (AttackPlayerState && AttackPlayerState != VictimPlayerState && XBlasterGameState)
 	{
 		AttackPlayerState->AddToScore(1.f);
+		XBlasterGameState->UpdateTopScore(AttackPlayerState);
 	}
 	if (VictimPlayerState)
 	{

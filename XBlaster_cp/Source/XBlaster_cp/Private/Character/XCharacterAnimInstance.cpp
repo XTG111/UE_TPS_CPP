@@ -123,8 +123,8 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 			RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRotation, DeltaTime, 20.f);
 		}
 	}
-
+	
 	bUseFABRIK = XCharacter->GetCombateState() != ECombatState::ECS_Reloading;
-	bUseAimOffset = XCharacter->GetCombateState() != ECombatState::ECS_Reloading;
-	bTransformRightHand = XCharacter->GetCombateState() != ECombatState::ECS_Reloading;
+	bUseAimOffset = XCharacter->GetCombateState() != ECombatState::ECS_Reloading; //可以加上 !XCharacter->bDisableGamePlay 使得在冷却时间不能转动
+	bTransformRightHand = XCharacter->GetCombateState() != ECombatState::ECS_Reloading; //可以加上 !XCharacter->bDisableGamePlay 使得在冷却时间不能转动
 }

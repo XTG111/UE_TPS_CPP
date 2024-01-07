@@ -32,6 +32,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void FinishingReloading();
 
+	//攻击函数
+	void IsFired(bool bPressed);
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -47,10 +50,8 @@ protected:
 	UFUNCTION()
 		void OnRep_EquippedWeapon();
 
-	//攻击
-	void IsFired(bool bPressed);
-
-	void ControlFire(bool bPressed);
+	//判断能否攻击
+		void ControlFire(bool bPressed);
 
 	//RPC传递射击状态，传递是否开枪，和客户端准星位置
 	UFUNCTION(Server, Reliable)
@@ -151,6 +152,10 @@ private:
 	//步枪备弹数初始值
 	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
 		int32 StartingARAmmo = 30;
+	//火炮备弹数初始值
+	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
+		int32 StartingRocketAmmo = 0;
+
 	//初始化Hash
 	void InitializeCarriedAmmo();	
 
@@ -170,4 +175,7 @@ public:
 
 	//更新子弹和备弹数
 	void UpdateAmmoAndCarriedAmmo();
+
+	//获取武器
+	FORCEINLINE AWeaponParent* GetEquippedWeapon() const { return EquippedWeapon; }
 };

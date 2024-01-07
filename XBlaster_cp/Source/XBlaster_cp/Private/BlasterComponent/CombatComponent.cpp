@@ -104,6 +104,7 @@ void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 void UCombatComponent::InitializeCarriedAmmo()
 {
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_AssaultRifle, StartingARAmmo);
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_RocketLauncher, StartingRocketAmmo);
 }
 
 void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
@@ -299,12 +300,12 @@ void UCombatComponent::HandleReload()
 
 void UCombatComponent::ControlFire(bool bPressed)
 {
-	if (EquippedWeapon->Ammo > 0 || HaveAmmoCanFire())
+	if (EquippedWeapon && EquippedWeapon->Ammo > 0 || HaveAmmoCanFire())
 	{
 		bCanFire = false;
-		if (bFired)
+		if (bPressed)
 		{
-			ServerFire(bFired, HitTarget);
+			ServerFire(bPressed, HitTarget);
 			if (EquippedWeapon)
 			{
 				CrosshairShootingFactor = 0.75f;
@@ -312,7 +313,7 @@ void UCombatComponent::ControlFire(bool bPressed)
 		}
 		StartFireTimer();
 	}
-	else if (EquippedWeapon->Ammo == 0)
+	else if (EquippedWeapon && EquippedWeapon->Ammo == 0)
 	{
 		if (EquippedWeapon->DryFireSound)
 		{

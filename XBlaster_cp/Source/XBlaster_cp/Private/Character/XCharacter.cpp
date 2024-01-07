@@ -23,6 +23,7 @@
 #include "Particles/ParticleSystemComponent.h"
 #include "XPlayerState/XBlasterPlayerState.h"
 #include "XBlaster_cp/XTypeHeadFile/WeaponTypes.h"
+#include "GameMode/XBlasterGameMode.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -87,6 +88,7 @@ void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 	DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon,COND_OwnerOnly);
 	DOREPLIFETIME(AXCharacter, bUnderJump);
 	DOREPLIFETIME(AXCharacter, TurningInPlace);
+	DOREPLIFETIME(AXCharacter, bDisableGamePlay);
 }
 
 //初始化组件中的值
@@ -129,6 +131,20 @@ void AXCharacter::BeginPlay()
 void AXCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	RotateInPlace(DeltaTime);
+	HideCameraIfCharacterClose();
+	PollInit();
+}
+
+void AXCharacter::RotateInPlace(float DeltaTime)
+{
+	//当在冷却状态不能旋转，考虑
+	if (bDisableGamePlay)
+	{
+		bUseControllerRotationYaw = false;
+		TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+		return;
+	}
 
 	//只有当角色权限大于模拟且是本地控制是才执行AimOffset
 	if (GetLocalRole() > ENetRole::ROLE_SimulatedProxy && IsLocallyControlled())
@@ -147,8 +163,6 @@ void AXCharacter::Tick(float DeltaTime)
 		}
 
 	}
-	HideCameraIfCharacterClose();
-	PollInit();
 }
 
 //初始化任何无法在第一帧初始化的类
@@ -186,6 +200,8 @@ void AXCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 
 void AXCharacter::MoveForward(float value)
 {
+	//禁用
+	if (bDisableGamePlay) return;
 	FRotator ControlRot = GetControlRotation();
 	ControlRot.Pitch = 0.0f;
 	ControlRot.Roll = 0.0f;
@@ -196,6 +212,8 @@ void AXCharacter::MoveForward(float value)
 
 void AXCharacter::MoveRight(float value)
 {
+	//禁用
+	if (bDisableGamePlay) return;
 	FRotator ControlRot = GetControlRotation();
 	ControlRot.Pitch = 0.0f;
 	ControlRot.Roll = 0.0f;
@@ -244,6 +262,8 @@ void AXCharacter::AimToRelaxMode()
 
 void AXCharacter::Jump()
 {
+	//禁用
+	if (bDisableGamePlay) return;
 	if(bIsCrouched)
 	{
 		UnCrouch();
@@ -257,12 +277,16 @@ void AXCharacter::Jump()
 
 void AXCharacter::StopJumping()
 {
+	//禁用
+	if (bDisableGamePlay) return;
 	Super::StopJumping();
 	bUnderJump = false;
 }
 
 void AXCharacter::ReloadWeapon()
 {
+	//禁用
+	if (bDisableGamePlay) return;
 	if (CombatComp)
 	{
 		CombatComp->ReloadWeapon();
@@ -657,7 +681,14 @@ void AXCharacter::MulticastElim_Implementation()
 
 	bElimmed = true;
 	PlayElimMontage();
-
+	
+	//禁用游戏输入
+	bDisableGamePlay = true;
+	GetCharacterMovement()->DisableMovement();
+	if (CombatComp)
+	{
+		GetCombatComp()->IsFired(false);
+	}
 	//改变角色的默认材质，为可溶解效果材质
 	if (DissolveMaterialInstance)
 	{
@@ -713,6 +744,14 @@ void AXCharacter::Destroyed()
 	if (ElimBotComp)
 	{
 		ElimBotComp->DestroyComponent();
+	}
+
+	//获取当前比赛状态
+	AXBlasterGameMode* XBlasterGameMode = Cast<AXBlasterGameMode>(UGameplayStatics::GetGameMode(this));
+	bool bMatchNotInProgress = XBlasterGameMode && XBlasterGameMode->GetMatchState() != MatchState::InProgress;
+	if (CombatComp && CombatComp->EquippedWeapon && bMatchNotInProgress)
+	{
+		CombatComp->EquippedWeapon->Destroy();
 	}
 }
 

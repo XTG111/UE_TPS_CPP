@@ -1944,12 +1944,6 @@ void AXBlasterPlayerController::ServerCheckMatchState_Implementation()
 		
 		//将服务器上的状态传给客户端
 		ClientJoinMidGame(MatchState, WarmupTime, MatchTime, LevelStartingTime);
-
-		//由于最开始HUD并不存在所以不能使用MatchState来判断绘制
-		if (XBlasterHUD && MatchState == MatchState::WaitingToStart)
-		{
-			XBlasterHUD->AddAnnouncement();
-		}
 	}
 }
 ```
@@ -2071,3 +2065,73 @@ void AXBlasterPlayerController::OnRep_MatchState()
 	}
 }
 ```
+
+# 重新开始游戏
+1. 在GameMode里面Tick函数中增加了else if判断，当时间满足条件RestartGame();
+2. 在冷却时间应该考虑的事情
+	1. 角色的移动控制，通过新增一个bool变量，来控制是否进行操作，如果为真那么就直接返回
+	```c++
+	void AXCharacter::MoveForward(float value)
+{
+	//禁用
+	if (bDisableGamePlay) return;
+	FRotator ControlRot = GetControlRotation();
+	ControlRot.Pitch = 0.0f;
+	ControlRot.Roll = 0.0f;
+	ForwardValue = value;
+	FVector FowardVector = FRotationMatrix(ControlRot).GetScaledAxis(EAxis::X);
+	AddMovementInput(FowardVector, value);
+}
+	```
+	2. 控制是根据游戏特性来决定的，但需要注意一些问题，比如在开枪的过程中游戏时间结束了，这时候不能只设置这个bool值，还需要去设置能否开枪。
+	```c++
+	void AXBlasterPlayerController::HandleCoolDown()
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+	if (XBlasterHUD)
+	{
+		XBlasterHUD->CharacterOverlayWdg->RemoveFromParent();
+		if (XBlasterHUD->AnnouncementWdg)
+		{
+			XBlasterHUD->AnnouncementWdg->SetVisibility(ESlateVisibility::Visible);
+			FString AnnouncementText("New Match Starts In: ");
+			if (XBlasterHUD->AnnouncementWdg->AnnouncementText)
+			{
+				XBlasterHUD->AnnouncementWdg->AnnouncementText->SetText(FText::FromString(AnnouncementText));
+			}
+			if (XBlasterHUD->AnnouncementWdg->InfoText)
+			{
+				XBlasterHUD->AnnouncementWdg->InfoText->SetText(FText());
+			}
+		}
+	}
+	AXCharacter* XCharacter = Cast<AXCharacter>(GetPawn());
+	if (XCharacter)
+	{
+		XCharacter->bDisableGamePlay = true;
+		if (XCharacter->GetCombatComp())
+		{
+			XCharacter->GetCombatComp()->IsFired(false);
+			if (XCharacter->GetCombatComp()->GetEquippedWeapon())
+			{
+				XCharacter->GetCombatComp()->GetEquippedWeapon()->Drop();
+			}
+		}
+	}
+}
+	```
+	3. 还有比如转向这些，即那些在角色中，通过调用其他函数或者该操作是发生一个过程直到过程结束，我们需要单独的去控制它们的结束，相当于手动释放。
+	
+# GameState
+可以用来存储整局游戏的玩家状态
+```c++
+//GameMode
+GetGameState<AClassGameState>();
+//其他类
+Cast<AClassGameState>(UGameplayStatics::GetGameState(this));
+```
+可以在GameState里面维护一个存储了玩家状态的数组，将这个数组设置为可复制的类型，用于从服务器传递到客户端，现在只维护了一个存储最高得分玩家的数组，而不是所有玩家。在GameMode里面我们设置了死亡时攻击者增加得分，这时候将攻击者的PlayerState存到这个数组里。最后在CoolDownState将文本打印出来。
+
+**后续可以增加一个存储所有玩家状态的Map，然后在BeginPlay的时候把每个PlayerState存入，当有得分或者死亡时更新它**
+
+# 新增了火箭筒武器，以及Niagra 不太会 

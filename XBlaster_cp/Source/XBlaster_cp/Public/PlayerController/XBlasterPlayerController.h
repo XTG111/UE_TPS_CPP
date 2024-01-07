@@ -74,7 +74,7 @@ protected:
 		void ServerCheckMatchState();
 	//当客户端加入时的状态，因为所有客户端相对于服务器来说都是在游戏中加入的
 	UFUNCTION(Client, Reliable)
-		void ClientJoinMidGame(FName StateOfMatch, float Warmup, float Match, float StartingTime);
+		void ClientJoinMidGame(FName StateOfMatch, float Warmup, float Match, float StartingTime, float CoolDown);
 
 	/**
 	处理MatchState的不同状态下的操作
@@ -90,15 +90,20 @@ private:
 	UPROPERTY()
 		class AXBlasterHUD* XBlasterHUD;
 
+	//获取GameMode
+	UPROPERTY()
+		class AXBlasterGameMode* XBlasterGameMode;
+
 	//关卡启动时的世界时间
 	float LevelStartingTime = 0.f;
 
 	//比赛的总时间设置SetHUDGameTime
 	float MatchTime = 0.f;
 	uint32 CountDownInt = 0;
-
 	//比赛热身时间
 	float WarmupTime = 0.f;
+	//比赛结束时间冷却
+	float CoolDownTime = 0.f;
 
 	//设置当前游戏地图状态MatchState;
 	UPROPERTY(ReplicatedUsing = OnRep_MatchState)
