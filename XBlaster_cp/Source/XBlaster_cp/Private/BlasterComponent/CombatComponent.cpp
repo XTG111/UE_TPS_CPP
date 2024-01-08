@@ -105,6 +105,7 @@ void UCombatComponent::InitializeCarriedAmmo()
 {
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_AssaultRifle, StartingARAmmo);
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_RocketLauncher, StartingRocketAmmo);
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_Pistol, StartingPistolAmmo);
 }
 
 void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
@@ -201,7 +202,6 @@ void UCombatComponent::FireTimeFinished()
 	{
 		ControlFire(bFired);
 	}
-
 	////auro reload when no ammo in automatic Fire
 	//if (EquippedWeapon->Ammo == 0)
 	//{
@@ -222,15 +222,20 @@ void UCombatComponent::OnRep_CarriedAmmo()
 //Server use
 void UCombatComponent::ReloadWeapon()
 {
-	if (CarriedAmmo > 0 && CombatState != ECombatState::ECS_Reloading)
+	if (EquippedWeapon)
 	{
-		ServerReload();
+		bool AmmoRemain = EquippedWeapon->Ammo < EquippedWeapon->MaxAmmo;
+		if (CarriedAmmo > 0 && AmmoRemain && CombatState != ECombatState::ECS_Reloading)
+		{
+			ServerReload();
+		}
 	}
 }
 
 void UCombatComponent::ServerReload_Implementation()
 {
 	if (CharacterEx == nullptr && EquippedWeapon == nullptr) return;
+	CharacterEx->GetWorldTimerManager().ClearTimer(FireTime);
 	CombatState = ECombatState::ECS_Reloading;
 	HandleReload();
 }
@@ -265,10 +270,6 @@ void UCombatComponent::FinishingReloading()
 		//在动画播放结束之后更新
 		UpdateAmmoAndCarriedAmmo();
 	}
-	if (bFired)
-	{
-		ControlFire(bFired);
-	}
 }
 
 void UCombatComponent::UpdateAmmoAndCarriedAmmo()
@@ -300,17 +301,19 @@ void UCombatComponent::HandleReload()
 
 void UCombatComponent::ControlFire(bool bPressed)
 {
-	if (EquippedWeapon && EquippedWeapon->Ammo > 0 || HaveAmmoCanFire())
+	if (EquippedWeapon && HaveAmmoCanFire())
 	{
 		bCanFire = false;
 		if (bPressed)
 		{
+			//播放蒙太奇动画以及伤害判定
 			ServerFire(bPressed, HitTarget);
 			if (EquippedWeapon)
 			{
 				CrosshairShootingFactor = 0.75f;
 			}
 		}
+		//发射子弹
 		StartFireTimer();
 	}
 	else if (EquippedWeapon && EquippedWeapon->Ammo == 0)
@@ -328,7 +331,7 @@ bool UCombatComponent::HaveAmmoCanFire()
 	{
 		return false;
 	}
-	return !bCanFire && CombatState == ECombatState::ECS_Unoccupied;
+	return EquippedWeapon->Ammo > 0 && bCanFire && CombatState == ECombatState::ECS_Unoccupied;
 }
 
 //执行开枪

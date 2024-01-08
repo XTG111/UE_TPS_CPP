@@ -155,6 +155,9 @@ private:
 	//火炮备弹数初始值
 	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
 		int32 StartingRocketAmmo = 0;
+	//手枪备弹数初始值
+	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
+		int32 StartingPistolAmmo = 15;
 
 	//初始化Hash
 	void InitializeCarriedAmmo();	

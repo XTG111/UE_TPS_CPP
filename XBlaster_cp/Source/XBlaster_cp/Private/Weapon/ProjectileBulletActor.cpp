@@ -4,6 +4,16 @@
 #include "Weapon/ProjectileBulletActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/ProjectileMovementComponent.h"
+
+AProjectileBulletActor::AProjectileBulletActor()
+{
+	ProjectileMovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
+	ProjectileMovementComp->bRotationFollowsVelocity = true;
+	ProjectileMovementComp->MaxSpeed = 15000.f;
+	ProjectileMovementComp->InitialSpeed = 15000.f;
+	ProjectileMovementComp->SetIsReplicated(true);
+}
 
 void AProjectileBulletActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit)
 {

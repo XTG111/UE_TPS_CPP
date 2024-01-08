@@ -15,11 +15,10 @@ public:
 	// Sets default values for this actor's properties
 	AProjectileActor();
 
-
-protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+protected:
 	//处理子弹命中后的销毁等操作,就是蓝图中的OnHit事件
 	UFUNCTION()
 		virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit);

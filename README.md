@@ -2135,3 +2135,117 @@ Cast<AClassGameState>(UGameplayStatics::GetGameState(this));
 **后续可以增加一个存储所有玩家状态的Map，然后在BeginPlay的时候把每个PlayerState存入，当有得分或者死亡时更新它**
 
 # 新增了火箭筒武器，以及Niagra 不太会 
+
+# 火箭子弹的消失控制
+由于火箭子弹我们增加了轨迹以及烟雾特效，我们之前直接继承的子弹类，会在子弹打击成功时销毁，这样我们的烟雾也会销毁，所以为了避免这个情况，我们重写了OnHit函数以及Destroyed(),所以这就导致了我们的销毁不再具有复制性
+为了解决这个问题，我们将原始的OnComponent()绑定事件变为了所有客户端都执行，然后修改了扣血机制，只在服务器上执行
+```c++
+if (!HasAuthority())
+	{
+		CollisionSphere->OnComponentHit.AddDynamic(this, &AProjectileRocket::OnHit);
+	}
+	
+	//
+	if (FiringPawn&&HasAuthority())
+	{
+		AController* FiringController = FiringPawn->GetController();
+		if (FiringController)
+		{
+```
+然后我们还需要新增定时器来控制Destroy函数的加载，这个函数就是用来销毁火箭子弹的。然后还要处理一些原本应当正常销毁的东西，比如声音，网格体在击中后就应该Destroy，而不是延迟3s，我们写这个延迟只是为了实现粒子特效的持续
+```c++
+	GetWorldTimerManager().SetTimer(DestroyTimer, this, &AProjectileRocket::DestroyTimerFinished, DestroyTime);
+	SelfPlayDestroy();
+	//Super::OnHit(HitComp, OtherActor, OtherComp, NormalImpilse, Hit);
+}
+
+//当击中时需要销毁的，而不是等待3s
+void AProjectileRocket::SelfPlayDestroy()
+{
+	if (ImpactParticles)
+	{
+		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ImpactParticles, GetActorTransform());
+	}
+
+	//音效
+	if (ImpactSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, GetActorLocation());
+	}
+
+	//mesh的消失
+	if (RocketMeshComp)
+	{
+		RocketMeshComp->SetVisibility(false);
+	}
+	//消除碰撞
+	if (CollisionSphere)
+	{
+		CollisionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	//消除粒子特效
+	if (TrailSystemComp && TrailSystemComp->GetSystemInstance())
+	{
+		TrailSystemComp->GetSystemInstance()->Deactivate();
+	}
+	//消除Rocket飞行的声音
+	if (RocketLoopComp && RocketLoopComp->IsPlaying())
+	{
+		RocketLoopComp->Stop();
+	}
+}
+
+void AProjectileRocket::DestroyTimerFinished()
+{
+	Destroy();
+}
+
+//为了覆盖父类的Destroyed()
+void AProjectileRocket::Destroyed()
+{
+}
+
+```
+
+# 火箭子弹自己的运动系统
+为了处理子弹会检测到发射子弹的Actor问题，ProjectileMovementComponent中有一个枚举变量
+```c++
+// Enum indicating how simulation should proceed after HandleBlockingHit() is called.
+	enum class EHandleBlockingHitResult
+	{
+		Deflect,				/** Assume velocity has been deflected, and trigger HandleDeflection(). This is the default return value of HandleBlockingHit(). */
+		AdvanceNextSubstep,		/** Advance to the next simulation update. Typically used when additional slide/multi-bounce logic can be ignored,
+								    such as when an object that blocked the projectile is destroyed and movement should continue. */
+		Abort,					/** Abort all further simulation. Typically used when components have been invalidated or simulation should stop. */
+	};
+
+/**
+	 * Handle blocking hit during simulation update. Checks that simulation remains valid after collision.
+	 * If simulating then calls HandleImpact(), and returns EHandleHitWallResult::Deflect by default to enable multi-bounce and sliding support through HandleDeflection().
+	 * If no longer simulating then returns EHandleHitWallResult::Abort, which aborts attempts at further simulation.
+	 *
+	 * @param  Hit						Blocking hit that occurred.
+	 * @param  TimeTick					Time delta of last move that resulted in the blocking hit.
+	 * @param  MoveDelta				Movement delta for the current sub-step.
+	 * @param  SubTickTimeRemaining		How much time to continue simulating in the current sub-step, which may change as a result of this function.
+	 *									Initial default value is: TimeTick * (1.f - Hit.Time)
+	 * @return Result indicating how simulation should proceed.
+	 * @see EHandleHitWallResult, HandleImpact()
+	 */
+	 virtual EHandleBlockingHitResult HandleBlockingHit(const FHitResult& Hit, float TimeTick, const FVector& MoveDelta, float& SubTickTimeRemaining);
+HandleImpact();
+```
+在包含运动组件的类中中设置专属的运动组件记得将其设置为可复制的
+```c++
+RocketMovementComp->SetIsReplicated(true);
+```
+将HandleBlockingHit返回结果设为AdvanceNextSubstep，这样当Hit的处理结果是Owner的时候，他会继续运动直到下一个Hit。
+
+# 射线检测类型子弹的武器
+主要就是发射子弹的类型不一样了，所以只需要重写一个Fire函数，我们不再生产粒子，而是直接使用射线检测进行判断是否击中。并在击中的位置产生粒子特效。
+需要注意的问题就是，服务器和客户端的伤害判定，由于我们在发射粒子武器中，所有逻辑都是写在服务器上的，所以客户端的响应全是通过网络同步复制过去的。
+当然我们在射线检测类武器也可以这样操作，但现在选择的方式是，所有客户端都可以自行维护一个射线检测（相当于所有客户端都可以发射粒子），但是处理伤害的逻辑在服务器上，就是血量的计算由服务器提供然后网络同步到各个客户端。
+
+这样做的目的是为了使得所有客户端的显示是一样的。避免错误的伤害判断导致玩家的死亡
+1. 服务器完全处理发射和伤害计算，然后利用多播将发射效果和伤害传递给客户端
+2. 服务器只处理伤害计算，客户端单独维护发射动画之类，这样本地玩家可以更好的感受到打击效果，但扣血判断可能会出现偏差。同样会利用多播将状态传递，具体体现就是本地客户端的感受

@@ -21,6 +21,9 @@ AWeaponParent::AWeaponParent()
 	//在所有客户端武器都为副本
 	bReplicates = true;
 
+	//将武器的运动也设置为复制
+	SetReplicateMovement(true);
+
 	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
 	WeaponMesh->SetupAttachment(RootComponent);
 	SetRootComponent(WeaponMesh);

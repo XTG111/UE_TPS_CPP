@@ -2,7 +2,6 @@
 
 
 #include "Weapon/ProjectileActor.h"
-#include "GameFramework/ProjectileMovementComponent.h"
 #include "Components/SphereComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystemComponent.h"
@@ -10,6 +9,7 @@
 #include "Sound/SoundCue.h"
 #include "Character/XCharacter.h"
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
+
 
 // Sets default values
 AProjectileActor::AProjectileActor()
@@ -28,11 +28,11 @@ AProjectileActor::AProjectileActor()
 	CollisionSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_WorldStatic, ECollisionResponse::ECR_Block);
 	CollisionSphere->SetCollisionResponseToChannel(ECC_SkeletalMesh, ECollisionResponse::ECR_Block);
 
-	//子弹移动组件
-	ProjectileMovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
-	ProjectileMovementComp->bRotationFollowsVelocity = true;
-	ProjectileMovementComp->MaxSpeed = 15000.f;
-	ProjectileMovementComp->InitialSpeed = 15000.f;
+	//子弹移动组件，在子类中创建
+	//ProjectileMovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
+	//ProjectileMovementComp->bRotationFollowsVelocity = true;
+	//ProjectileMovementComp->MaxSpeed = 15000.f;
+	//ProjectileMovementComp->InitialSpeed = 15000.f;
 
 }
 
@@ -45,12 +45,11 @@ void AProjectileActor::BeginPlay()
 		TracerComp = UGameplayStatics::SpawnEmitterAttached(Tracer, CollisionSphere, FName(), GetActorLocation(), GetActorRotation(), EAttachLocation::KeepWorldPosition);
 	}
 
-	//绑定OnHit到OnComponentHit
+	//绑定OnHit到OnComponentHit server
 	if (HasAuthority())
 	{
 		CollisionSphere->OnComponentHit.AddDynamic(this, &AProjectileActor::OnHit);
 	}
-	
 }
 
 //在击中时播放音效，销毁等
