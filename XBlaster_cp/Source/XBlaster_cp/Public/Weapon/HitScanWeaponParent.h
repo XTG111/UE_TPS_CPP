@@ -22,5 +22,19 @@ private:
 
 	UPROPERTY(EditAnywhere)
 		class UParticleSystem* ImpactParticle;
+
+	UPROPERTY(EditAnywhere)
+		UParticleSystem* BeamParticles;
+
+	//chongfengqiang
+	UPROPERTY(EditAnywhere)
+		UParticleSystem* MuzzleFlash;
+	UPROPERTY(EditAnywhere)
+		USoundCue* FireSound;
+	UPROPERTY(EditAnywhere)
+		USoundCue* HitSound;
+
+	//处理冲锋枪效果
+	void SetSubMachineGunProper(UWorld* World, FTransform& SockertTransform);
 	
 };

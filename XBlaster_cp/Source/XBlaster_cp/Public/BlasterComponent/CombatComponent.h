@@ -53,10 +53,10 @@ protected:
 	//判断能否攻击
 		void ControlFire(bool bPressed);
 
-	//RPC传递射击状态，传递是否开枪，和客户端准星位置
+	//RPC传递射击状态，传递是否开枪，和客户端准星位置Call from Client Do in the server
 	UFUNCTION(Server, Reliable)
 		void ServerFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
-	//Multicast RPC
+	//Multicast RPC Call from Server
 	UFUNCTION(NetMulticast, Reliable)
 		void MulticastFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
 
@@ -158,6 +158,9 @@ private:
 	//手枪备弹数初始值
 	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
 		int32 StartingPistolAmmo = 15;
+	//冲锋枪备弹初始值
+	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
+		int32 SubMachineGunAmmo = 55;
 
 	//初始化Hash
 	void InitializeCarriedAmmo();	

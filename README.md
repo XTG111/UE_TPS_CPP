@@ -2241,6 +2241,23 @@ RocketMovementComp->SetIsReplicated(true);
 ```
 将HandleBlockingHit返回结果设为AdvanceNextSubstep，这样当Hit的处理结果是Owner的时候，他会继续运动直到下一个Hit。
 
+HandleBlockingHit->HandleDeflection->HandleSliding
+1. TickComponent
+```c++
+	else if (HandleBlockingResult == EHandleBlockingHitResult::AdvanceNextSubstep)
+	{
+		// Reset deflection logic to ignore this hit
+		PreviousHitTime = 1.f;
+	}
+```
+可以看到当状态为AdvanceNextSubstep，他会使得检测逻辑重置。
+2. HitTime
+```c++
+//'Time' of impact along trace direction ranging from [0.0 to 1.0) if there is a hit, indicating time between start and end. Equals 1.0 if there is no hit.
+//在HandleBlockingResult == EHandleBlockingHitResult::Deflect后
+PreviousHitTime = Hit.Time;
+```
+[参考](https://forums.unrealengine.com/t/how-do-i-prevent-a-projectile-movement-component-to-stop-when-it-hits-something/297387/9)
 # 射线检测类型子弹的武器
 主要就是发射子弹的类型不一样了，所以只需要重写一个Fire函数，我们不再生产粒子，而是直接使用射线检测进行判断是否击中。并在击中的位置产生粒子特效。
 需要注意的问题就是，服务器和客户端的伤害判定，由于我们在发射粒子武器中，所有逻辑都是写在服务器上的，所以客户端的响应全是通过网络同步复制过去的。
@@ -2249,3 +2266,40 @@ RocketMovementComp->SetIsReplicated(true);
 这样做的目的是为了使得所有客户端的显示是一样的。避免错误的伤害判断导致玩家的死亡
 1. 服务器完全处理发射和伤害计算，然后利用多播将发射效果和伤害传递给客户端
 2. 服务器只处理伤害计算，客户端单独维护发射动画之类，这样本地玩家可以更好的感受到打击效果，但扣血判断可能会出现偏差。同样会利用多播将状态传递，具体体现就是本地客户端的感受
+
+# AController HasAuthority()
+Controller只在本地客户端上有效，在其他是代理的机器上是没有该Actor的Controller的，HasAuthority表示该actor是可复制的，且如果返回值为true则说明其实例在服务器上。客户端都是复制的。所以我们可以通过if(HasAuthority())来限制某些只能在服务器上进行的操作比如伤害的计算等等。
+
+以我们开火的功能为例，我们使用了ServerRPC和MulticastRPC，使用ServerRPC的作用是执行开火Actor的客户端可以将效果反应到Server上相当于从Client到Server的复制。然后服务器将执行ServerFire中的函数内容，然后使用MulticastRPC是将那个actor的效果扩散到所有已经连接的客户端上是从server到clients的复制。
+
+我们在回过头来看我们写的开火功能函数，首先我们是写在每个武器类中的，其继承了武器父类，且是可复制的。所以每个武器在客户端都是模拟，在服务器上是实例。这样我们就可以通过if(HasAuthority())来判断伤害的函数
+```c++
+if(HasAuthority())
+{
+	ApplyDamage(...);
+}
+
+//也可以直接将Fire划在服务器上，那就是在函数体内部开头写上
+if(!HasAuthority()) return;
+```
+前面提到了Controller只在本地客户端上有效，那么如果我们在判断条件中加上了对Controller是否为空的判断，将导致其他客户端在执行对开火的模拟时，不会出发响应的特效
+```c++
+if(Controller&&...)
+{
+	//只会在本地展示，因为在其他客户端上Controller为空
+	SpawnEmitter(...)
+}
+
+//正确的做法是，在需要用到的地方添加
+if(...)
+{
+	if(Controller&&HasAuthority())
+	{
+		ApplyDamage(...);
+	}
+	if(...)
+	{
+		SpwanEmitter(...);
+	}
+}
+```

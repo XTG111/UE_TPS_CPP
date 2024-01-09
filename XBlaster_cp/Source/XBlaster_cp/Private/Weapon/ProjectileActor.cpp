@@ -18,6 +18,7 @@ AProjectileActor::AProjectileActor()
 	PrimaryActorTick.bCanEverTick = true;
 
 	bReplicates = true;
+	SetReplicateMovement(true);
 
 	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("SphereCollision"));
 	SetRootComponent(CollisionSphere);
