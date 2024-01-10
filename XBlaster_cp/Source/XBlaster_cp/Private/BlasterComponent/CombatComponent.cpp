@@ -83,12 +83,18 @@ void UCombatComponent::BeginPlay()
 
 void UCombatComponent::SetAiming(bool bIsAiming)
 {
+	if (CharacterEx == nullptr || EquippedWeapon == nullptr) return;
 	//为了避免网络延迟，导致动画的延迟
 	bUnderAiming = bIsAiming;
 	ServerSetAiming(bIsAiming);
 	if (CharacterEx)
 	{
 		CharacterEx->GetCharacterMovement()->MaxWalkSpeed = bUnderAiming ? AimWalkSpeed : BaseWalkSpeed;
+	}
+	//只在本地运行
+	if (CharacterEx->IsLocallyControlled() && EquippedWeapon->WeaponType == EWeaponType::EWT_Snipper)
+	{
+		CharacterEx->ShowSnipperScope(bIsAiming);
 	}
 }
 
@@ -107,6 +113,8 @@ void UCombatComponent::InitializeCarriedAmmo()
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_RocketLauncher, StartingRocketAmmo);
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_Pistol, StartingPistolAmmo);
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_SubMachineGun, SubMachineGunAmmo);
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_ShotGun, ShotGunAmmo);
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_Snipper, SnipperAmmo);
 }
 
 void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
@@ -408,7 +416,7 @@ void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
 		}
 		else
 		{
-			DrawDebugSphere(GetWorld(), TraceHitResult.ImpactPoint, 12.f, 12, FColor::Red);
+			//DrawDebugSphere(GetWorld(), TraceHitResult.ImpactPoint, 12.f, 12, FColor::Red);
 		}
 
 		//当命中对象继承了InteractWithCrosshairInterface接口时，改变准星颜色

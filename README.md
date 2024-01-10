@@ -2303,3 +2303,80 @@ if(...)
 	}
 }
 ```
+
+# 使冲锋枪的枪绳晃动
+需要为枪绳添加物理资产，这样枪绳上的每个骨骼都会有collisionbox包围，设置其physics type为simulated和linerdamping等参数，然后为武器开启模拟物理设置其碰撞为检测和物理
+```c++
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	WeaponMesh->SetEnableGravity(true);
+	WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+```
+
+# 霰弹枪
+霰弹枪的随机分布，在终点选择一个球形区域的一些随机点作为终点
+```c++
+FVector AHitScanWeaponParent::TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget)
+{
+	//从起点指向目标的方向向量
+	FVector ToTargetNormalize = (HitTarget - TraceStart).GetSafeNormal();
+	
+	//散布圆心位置
+	FVector SphereCenter = TraceStart + ToTargetNormalize * DistanceToSphere;
+	DrawDebugSphere(GetWorld(), SphereCenter, SphereRadius, 12, FColor::Red, true);
+
+	//随机生成球内1点
+	FVector RandVec = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
+	FVector EndLoc = SphereCenter + RandVec;
+	
+	FVector ToEndLoc = EndLoc - TraceStart;
+	DrawDebugSphere(GetWorld(), EndLoc, 4.f, 12, FColor::Orange, true);
+	
+	DrawDebugLine(GetWorld(), TraceStart, FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size()), FColor::Cyan, true);
+	return FVector(TraceStart + ToEndLoc * 80000.f/ToEndLoc.Size());
+}
+```
+
+# 霰弹枪伤害计算
+利用一个Map来存储每颗子弹的击中角色，和该角色被子弹击中数，最后再遍历这个Map求得最终的伤害值
+```c++
+TMap<AXCharacter*, uint32> HitMap;
+
+	//生成10个随机位置
+	for (uint32 i = 0; i < NumberOfPellets; i++)
+	{
+		FHitResult FireHit;
+		WeaponTraceHit(Start, HitTarget, FireHit);
+
+		//伤害计算
+		XCharacter = Cast<AXCharacter>(FireHit.GetActor());
+		if (XCharacter && HasAuthority() && InstigatorController)
+		{
+			//如果击中那么Hits数增加
+			if (HitMap.Contains(XCharacter))
+			{
+				HitMap[XCharacter]++;
+			}
+			else
+			{
+				HitMap.Emplace(XCharacter, 1);
+			}
+		}
+```
+上方是计算击中的角色和角色的受击数，下面是遍历Map应用实际伤害
+```c++
+		for (auto HitPair : HitMap)
+		{
+			if (HitPair.Key && InstigatorController && HasAuthority())
+			{
+				UGameplayStatics::ApplyDamage(
+					HitPair.Key,
+					Damage * HitPair.Value,
+					InstigatorController,
+					this,
+					UDamageType::StaticClass()
+				);
+			}
+		}
+```
+
+# 狙击步枪的视角变焦

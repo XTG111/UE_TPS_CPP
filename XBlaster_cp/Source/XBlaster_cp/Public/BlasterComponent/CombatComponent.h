@@ -161,6 +161,12 @@ private:
 	//冲锋枪备弹初始值
 	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
 		int32 SubMachineGunAmmo = 55;
+	//霰弹枪备弹初始值
+	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
+		int32 ShotGunAmmo = 10;
+	//狙击枪备弹初始值
+	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
+		int32 SnipperAmmo = 10;
 
 	//初始化Hash
 	void InitializeCarriedAmmo();	
@@ -184,4 +190,5 @@ public:
 
 	//获取武器
 	FORCEINLINE AWeaponParent* GetEquippedWeapon() const { return EquippedWeapon; }
+	FORCEINLINE bool GetbAiming() const { return bUnderAiming; }
 };

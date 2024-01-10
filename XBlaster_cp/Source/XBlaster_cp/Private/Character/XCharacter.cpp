@@ -603,6 +603,12 @@ void AXCharacter::PlayReloadMontage()
 		case EWeaponType::EWT_SubMachineGun:
 			SectionName = FName("ReloadRifle");
 			break;
+		case EWeaponType::EWT_ShotGun:
+			SectionName = FName("ReloadRifle");
+			break;
+		case EWeaponType::EWT_Snipper:
+			SectionName = FName("ReloadRifle");
+			break;
 		}
 		AnimInstance->Montage_JumpToSection(SectionName);
 	}
@@ -731,6 +737,16 @@ void AXCharacter::MulticastElim_Implementation()
 		UGameplayStatics::SpawnSoundAtLocation(this, ElimBotSound, GetActorLocation());
 	}
 
+	//当角色在开镜时死亡，需要关闭瞄准效果
+	bool bHideSnipperScope = IsLocallyControlled()
+		&& CombatComp
+		&& CombatComp->GetbAiming()
+		&& CombatComp->EquippedWeapon
+		&& CombatComp->EquippedWeapon->WeaponType == EWeaponType::EWT_Snipper;
+	if (bHideSnipperScope)
+	{
+		ShowSnipperScope(false);
+	}
 }
 
 //重生
@@ -792,5 +808,3 @@ ECombatState AXCharacter::GetCombateState() const
 	if (CombatComp == nullptr) return ECombatState::ECS_MAX;
 	return CombatComp->CombatState;
 }
-
-

@@ -66,6 +66,10 @@ public:
 	//该函数将用于初始化任何无法在第一帧初始化的类
 	void PollInit();
 
+	//狙击枪开镜动画
+	UFUNCTION(BlueprintImplementableEvent)
+		void ShowSnipperScope(bool bShowScope);
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
