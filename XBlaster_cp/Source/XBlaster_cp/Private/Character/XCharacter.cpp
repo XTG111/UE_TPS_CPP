@@ -595,19 +595,22 @@ void AXCharacter::PlayReloadMontage()
 			SectionName = FName("ReloadRifle");
 			break;
 		case EWeaponType::EWT_RocketLauncher:
-			SectionName = FName("ReloadRifle");
+			SectionName = FName("ReloadRocket");
 			break;
 		case EWeaponType::EWT_Pistol:
-			SectionName = FName("ReloadRifle");
+			SectionName = FName("ReloadPistol");
 			break;
 		case EWeaponType::EWT_SubMachineGun:
-			SectionName = FName("ReloadRifle");
+			SectionName = FName("ReloadPistol");
 			break;
 		case EWeaponType::EWT_ShotGun:
-			SectionName = FName("ReloadRifle");
+			SectionName = FName("ReloadShotGun");
 			break;
 		case EWeaponType::EWT_Snipper:
-			SectionName = FName("ReloadRifle");
+			SectionName = FName("ReloadSnipper");
+			break;
+		case EWeaponType::EWT_GrenadeLauncher:
+			SectionName = FName("ReloadGrenade");
 			break;
 		}
 		AnimInstance->Montage_JumpToSection(SectionName);

@@ -12,6 +12,7 @@
 #include "Engine/SkeletalMeshSocket.h"
 #include "PlayerController/XBlasterPlayerController.h"
 #include "Character/XCharacter.h"
+#include "BlasterComponent/CombatComponent.h"
 
 // Sets default values
 AWeaponParent::AWeaponParent()
@@ -33,6 +34,11 @@ AWeaponParent::AWeaponParent()
 	WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
 	//当位于手上的时候，不开启碰撞
 	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	//设置颜色
+	WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_BLUE);
+	WeaponMesh->MarkRenderStateDirty();
+	EnableCustomDepth(true);
 
 	//球体检测能否拾取，在服务器上进行，所以在客户端可以将通道设置为忽略
 	SphereComp = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComp"));
@@ -101,6 +107,7 @@ void AWeaponParent::OnRep_WeponState()
 			WeaponMesh->SetEnableGravity(true);
 			WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
 		}
+		EnableCustomDepth(false);
 		break;
 	case EWeaponState::EWS_Dropped:
 		WeaponMesh->SetSimulatePhysics(true);
@@ -111,6 +118,9 @@ void AWeaponParent::OnRep_WeponState()
 		//对角色设置忽略，使得角色不会被其阻挡
 		WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
 		WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+		WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_BLUE);
+		WeaponMesh->MarkRenderStateDirty();
+		EnableCustomDepth(true);
 		break;
 	case EWeaponState::EWS_MAX:
 		break;
@@ -142,6 +152,7 @@ void AWeaponParent::SetWeaponState(EWeaponState State)
 			WeaponMesh->SetEnableGravity(true);
 			WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
 		}
+		EnableCustomDepth(false);
 		break;
 	case EWeaponState::EWS_Dropped:
 		if (HasAuthority())
@@ -155,7 +166,9 @@ void AWeaponParent::SetWeaponState(EWeaponState State)
 		WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
 		WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
 		WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
-
+		WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_BLUE);
+		WeaponMesh->MarkRenderStateDirty();
+		EnableCustomDepth(true);
 		break;
 	case EWeaponState::EWS_MAX:
 		break;
@@ -215,6 +228,12 @@ void AWeaponParent::SetHUDAmmo()
 
 void AWeaponParent::OnRep_Ammo()
 {
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+	//客户端调用停止霰弹枪的换弹动画
+	if (XCharacter && XCharacter->GetCombatComp() && IsFull())
+	{
+		XCharacter->GetCombatComp()->JumpToShotGunEnd();
+	}
 	SetHUDAmmo();
 }
 
@@ -253,6 +272,19 @@ void AWeaponParent::AddAmmo(int32 AmmoToAdd)
 {
 	Ammo = FMath::Clamp(Ammo - AmmoToAdd, 0, MaxAmmo);
 	SetHUDAmmo();
+}
+
+bool AWeaponParent::IsFull()
+{
+	return Ammo == MaxAmmo;
+}
+
+void AWeaponParent::EnableCustomDepth(bool bEnable)
+{
+	if (WeaponMesh)
+	{
+		WeaponMesh->SetRenderCustomDepth(bEnable);
+	}
 }
 
 void AWeaponParent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)

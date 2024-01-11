@@ -286,6 +286,8 @@ public:
 	//获取玩家此时是否在装弹，从而禁止动画中的IK
 	ECombatState GetCombateState() const;
 
+	FORCEINLINE UAnimMontage* GetRelodMontage() const { return ReloadMontage; }
+
 public:
 	//控制哪些操作将被禁用
 	UPROPERTY(Replicated)

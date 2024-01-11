@@ -35,6 +35,10 @@ public:
 	//攻击函数
 	void IsFired(bool bPressed);
 
+	//动画通知调用统计霰弹枪此时的子弹数
+	UFUNCTION(BlueprintCallable)
+		void ShotGunShellReload();
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -167,6 +171,10 @@ private:
 	//狙击枪备弹初始值
 	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
 		int32 SnipperAmmo = 10;
+	//榴弹枪备弹初始值
+	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
+		int32 GrenadeLauncherAmmo = 10;
+	
 
 	//初始化Hash
 	void InitializeCarriedAmmo();	
@@ -187,6 +195,12 @@ public:
 
 	//更新子弹和备弹数
 	void UpdateAmmoAndCarriedAmmo();
+
+	//专用于霰弹枪
+	void ShotGunUpdateAmmoAndCarriedAmmo();
+
+	//用于跳转到section，这样客户端和服务器都可以调用
+	void JumpToShotGunEnd();
 
 	//获取武器
 	FORCEINLINE AWeaponParent* GetEquippedWeapon() const { return EquippedWeapon; }

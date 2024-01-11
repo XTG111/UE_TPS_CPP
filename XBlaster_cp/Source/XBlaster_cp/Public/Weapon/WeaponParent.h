@@ -144,6 +144,12 @@ public:
 	UPROPERTY(EditAnywhere)
 		USoundCue* DryFireSound;
 
+	//判断现在是否满弹
+	bool IsFull();
+
+	//启用自定义深度
+	void EnableCustomDepth(bool bEnable);
+
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点
 	UFUNCTION()

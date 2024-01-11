@@ -13,6 +13,7 @@
 #include "PlayerController/XBlasterPlayerController.h"
 #include "Camera/CameraComponent.h"
 #include "Sound/SoundCue.h"
+#include "Character/XCharacterAnimInstance.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -115,6 +116,7 @@ void UCombatComponent::InitializeCarriedAmmo()
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_SubMachineGun, SubMachineGunAmmo);
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_ShotGun, ShotGunAmmo);
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_Snipper, SnipperAmmo);
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_GrenadeLauncher, GrenadeLauncherAmmo);
 }
 
 void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
@@ -226,6 +228,15 @@ void UCombatComponent::OnRep_CarriedAmmo()
 	{
 		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
 	}
+	//霰弹枪的跳转换弹同步到客户端
+	bool bJumpToShotGunEnd = CombatState == ECombatState::ECS_Reloading &&
+		EquippedWeapon != nullptr &&
+		EquippedWeapon->WeaponType == EWeaponType::EWT_ShotGun &&
+		CarriedAmmo == 0;
+	if (bJumpToShotGunEnd)
+	{
+		JumpToShotGunEnd();
+	}
 }
 
 //Server use
@@ -302,6 +313,45 @@ void UCombatComponent::UpdateAmmoAndCarriedAmmo()
 	EquippedWeapon->AddAmmo(-ReloadAmount);
 }
 
+//霰弹枪换弹调用，被动画通知调用
+void UCombatComponent::ShotGunUpdateAmmoAndCarriedAmmo()
+{
+	if (CharacterEx == nullptr && EquippedWeapon == nullptr) return;
+	if (CarriedAmmoMap.Contains(EquippedWeapon->WeaponType))
+	{
+		//更新备弹数以及UI显示的备弹数
+		CarriedAmmoMap[EquippedWeapon->WeaponType] -= 1;
+		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->WeaponType];
+	}
+
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+	if (XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+
+	EquippedWeapon->AddAmmo(-1);
+
+	//当增加了一发子弹就可以开火了
+	bCanFire = true;
+	//MaxAmmo 5
+	//当换弹到maxammo 或者 没有备弹那么跳转
+	if (EquippedWeapon->IsFull() || CarriedAmmo == 0)
+	{
+		//Jump To End Section
+		JumpToShotGunEnd();
+	}
+}
+
+void UCombatComponent::JumpToShotGunEnd()
+{
+	UAnimInstance* AnimInstance = CharacterEx->GetMesh()->GetAnimInstance();
+	if (AnimInstance && CharacterEx->GetRelodMontage())
+	{
+		AnimInstance->Montage_JumpToSection(FName("ShotGunReloadEnd"));
+	}
+}
+
 void UCombatComponent::HandleReload()
 {
 	CharacterEx->PlayReloadMontage();
@@ -340,6 +390,13 @@ bool UCombatComponent::HaveAmmoCanFire()
 	{
 		return false;
 	}
+
+	//对于霰弹枪的单独开枪判断
+	if (EquippedWeapon->Ammo > 0 && bCanFire && CombatState == ECombatState::ECS_Reloading && EquippedWeapon->WeaponType == EWeaponType::EWT_ShotGun)
+	{
+		return true;
+	}
+
 	return EquippedWeapon->Ammo > 0 && bCanFire && CombatState == ECombatState::ECS_Unoccupied;
 }
 
@@ -361,6 +418,23 @@ void UCombatComponent::MulticastFire_Implementation(bool bPressed, const FVector
 	bFired = bPressed;
 	if (EquippedWeapon == nullptr) return;
 	//UE_LOG(LogTemp, Warning, TEXT("AO_YAW:%d"), bFired);
+	// 
+	// 对于霰弹枪
+	if (CharacterEx && CombatState == ECombatState::ECS_Reloading && EquippedWeapon->WeaponType == EWeaponType::EWT_ShotGun)
+	{
+		CharacterEx->PlayFireMontage(bUnderAiming);
+		if (bFired)
+		{
+			EquippedWeapon->Fire(TraceHitTarget);
+		}
+		else
+		{
+			EquippedWeapon->WeaponMesh->Stop();
+		}
+		CombatState = ECombatState::ECS_Unoccupied;
+		return;
+	}
+
 	//开火粒子特效的播放
 	if (CharacterEx && CombatState == ECombatState::ECS_Unoccupied)
 	{
@@ -534,6 +608,14 @@ void UCombatComponent::InterpFOV(float Deltatime)
 	if (CharacterEx && CharacterEx->GetFollowCamera())
 	{
 		CharacterEx->GetFollowCamera()->SetFieldOfView(CurrentFOV);
+	}
+}
+
+void UCombatComponent::ShotGunShellReload()
+{
+	if (CharacterEx && CharacterEx->HasAuthority())
+	{
+		ShotGunUpdateAmmoAndCarriedAmmo();
 	}
 }
 

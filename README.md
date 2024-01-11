@@ -2379,4 +2379,83 @@ TMap<AXCharacter*, uint32> HitMap;
 		}
 ```
 
-# 狙击步枪的视角变焦
+# 榴弹的弹跳
+ProjectileMoveComponent组件中有一个bShouldBounce的功能开启后可以弹跳。
+```c++
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams( FOnProjectileBounceDelegate, const FHitResult&, ImpactResult, const FVector&, ImpactVelocity );
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam( FOnProjectileStopDelegate, const FHitResult&, ImpactResult );
+```
+并且有两个动态多播委托
+
+# 霰弹枪的装弹动画优化
+重复装弹的动画通知
+1. 每个Shell 要增加一个弹药 更新HUD
+2. 检测是否装满
+3. 如果有弹药就可以射击打断装弹
+
+状态的传递：我们有两种情况需要跳转到停止装弹的动画，一个是子弹数与最大子弹数相等，一个是备弹数为0。刚好这两个都是replicated的，所以可以通过repNotify来传递函数功能，使得客户端调用展示停止动画。
+
+攻击打断装弹动画，这需要我们专门为霰弹枪的开火控制逻辑重写一下判断，首先是在换弹的函数中如果加了一发子弹那么就需要把控制开火的布尔值给置为true
+```c++
+	EquippedWeapon->AddAmmo(-1);
+	//当增加了一发子弹就可以开火了
+	bCanFire = true;
+```
+其次是我们判断是否可以开火的函数需要专门为霰弹枪增加一个判断，主要原因是此时霰弹枪的状态是装弹状态
+```c++
+bool UCombatComponent::HaveAmmoCanFire()
+{
+	if (EquippedWeapon == nullptr)
+	{
+		return false;
+	}
+
+	//对于霰弹枪的单独开枪判断
+	if (EquippedWeapon->Ammo > 0 && bCanFire && CombatState == ECombatState::ECS_Reloading && EquippedWeapon->WeaponType == EWeaponType::EWT_ShotGun)
+	{
+		return true;
+	}
+
+	return EquippedWeapon->Ammo > 0 && bCanFire && CombatState == ECombatState::ECS_Unoccupied;
+}
+```
+同样我们需要在多播rpc中向客户端传递这个状态,并且还需要手动修改状态为默认而不是装弹
+```c++
+// 对于霰弹枪
+	if (CharacterEx && CombatState == ECombatState::ECS_Reloading && EquippedWeapon->WeaponType == EWeaponType::EWT_ShotGun)
+	{
+		CharacterEx->PlayFireMontage(bUnderAiming);
+		if (bFired)
+		{
+			EquippedWeapon->Fire(TraceHitTarget);
+		}
+		else
+		{
+			EquippedWeapon->WeaponMesh->Stop();
+		}
+		CombatState = ECombatState::ECS_Unoccupied;
+		return;
+	}
+```
+
+# 为武器显示高亮的轮廓
+pp材质，拖入post process volume到场景中，然后对武器的网格体开启自定义深度
+```c++
+//构造函数
+	WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_PURPLE);
+	WeaponMesh->MarkRenderStateDirty();
+	EnableCustomDepth(true);
+	
+//功能函数
+void AWeaponParent::EnableCustomDepth(bool bEnable)
+{
+	if (WeaponMesh)
+	{
+		WeaponMesh->SetRenderCustomDepth(bEnable);
+	}
+}
+```
+SetRenderCustomDepth(bEnable)为主要控制函数，之后通过武器是否装备状态的切换可以控制开关。
+为了传递给客户端，我们利用武器状态是replicated的，利用repnotify进行传递。
+
+在项目设置下，customdepth-> custom ... pass :enable with stencil

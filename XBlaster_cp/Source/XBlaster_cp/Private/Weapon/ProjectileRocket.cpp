@@ -13,9 +13,9 @@
 
 AProjectileRocket::AProjectileRocket()
 {
-	RocketMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RocketMeshComp"));
-	RocketMeshComp->SetupAttachment(RootComponent);
-	RocketMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ProjectileMeshComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RocketMeshComp"));
+	ProjectileMeshComp->SetupAttachment(RootComponent);
+	ProjectileMeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	RocketMovementComp = CreateDefaultSubobject<URocketMovementComponent>(TEXT("RocketMovementComp"));
 	RocketMovementComp->bRotationFollowsVelocity = true;
@@ -35,18 +35,7 @@ void AProjectileRocket::BeginPlay()
 	}
 
 	//Spawn NiagaraSystem;
-	if (TrailSystem)
-	{
-		TrailSystemComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
-			TrailSystem,
-			GetRootComponent(),
-			FName(),
-			GetActorLocation(),
-			GetActorRotation(),
-			EAttachLocation::KeepWorldPosition,
-			false
-		);
-	}
+	SpawnTrailSystem();
 
 	//Spawn LoopingSound
 	if (RocketLoopSound && LoopingSoundAtt)
@@ -71,33 +60,17 @@ void AProjectileRocket::BeginPlay()
 void AProjectileRocket::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit)
 {
 	APawn* FiringPawn =  GetInstigator();
-	//由于我们改变了OnHit事件的处理位置，现在所有服务器都可以处理，但是伤害的计算只需要在服务器上完成否则所有客户端都会响应
+	//由于我们改变了OnHit事件的处理位置，现在所有服务器都可以处理，但是伤害的计算只需要在服务器上完成
 	if (FiringPawn&&HasAuthority())
 	{
+		//如果碰撞发生在和自己身上返回
 		if (OtherActor == GetOwner()) 
 		{
 			return;
 		}
-		AController* FiringController = FiringPawn->GetController();
-		if (FiringController)
-		{
-			//Damage 5.f~DamageBaseFloat 
-			//Radius, 200~500  <200
-			UGameplayStatics::ApplyRadialDamageWithFalloff(this,
-				DamageBaseFloat,
-				5.f,
-				GetActorLocation(),
-				200.f,
-				500.f,
-				1.f,
-				UDamageType::StaticClass(),
-				TArray<AActor*>(),
-				this,
-				FiringController);
-
-		}
+		ExplodeDamage();
 	}
-	GetWorldTimerManager().SetTimer(DestroyTimer, this, &AProjectileRocket::DestroyTimerFinished, DestroyTime);
+	StartDestroyTimer();
 	SelfPlayDestroy();
 	//Super::OnHit(HitComp, OtherActor, OtherComp, NormalImpilse, Hit);
 }
@@ -117,9 +90,9 @@ void AProjectileRocket::SelfPlayDestroy()
 	}
 
 	//mesh的消失
-	if (RocketMeshComp)
+	if (ProjectileMeshComp)
 	{
-		RocketMeshComp->SetVisibility(false);
+		ProjectileMeshComp->SetVisibility(false);
 	}
 	//消除碰撞
 	if (CollisionSphere)
@@ -136,11 +109,6 @@ void AProjectileRocket::SelfPlayDestroy()
 	{
 		RocketLoopComp->Stop();
 	}
-}
-
-void AProjectileRocket::DestroyTimerFinished()
-{
-	Destroy();
 }
 
 void AProjectileRocket::Destroyed()

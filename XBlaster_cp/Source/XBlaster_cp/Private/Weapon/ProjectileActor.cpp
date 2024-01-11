@@ -9,6 +9,8 @@
 #include "Sound/SoundCue.h"
 #include "Character/XCharacter.h"
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
 
 
 // Sets default values
@@ -56,14 +58,6 @@ void AProjectileActor::BeginPlay()
 //在击中时播放音效，销毁等
 void AProjectileActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit)
 {
-	////被击中对象播放击中动画
-	//AXCharacter* CharacterEx = Cast<AXCharacter>(OtherActor);
-	//if (CharacterEx)
-	//{
-	//	CharacterEx->MulticastHit();
-	//}
-
-	//摧毁,调用了Destroyed()函数
 	Destroy();
 }
 
@@ -86,6 +80,60 @@ void AProjectileActor::Destroyed()
 	if (ImpactSound)
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, GetActorLocation());
+	}
+}
+
+void AProjectileActor::SpawnTrailSystem()
+{
+	//Spawn NiagaraSystem;
+	if (TrailSystem)
+	{
+		TrailSystemComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+			TrailSystem,
+			GetRootComponent(),
+			FName(),
+			GetActorLocation(),
+			GetActorRotation(),
+			EAttachLocation::KeepWorldPosition,
+			false
+		);
+	}
+}
+
+void AProjectileActor::DestroyTimerFinished()
+{
+	Destroy();
+}
+
+void AProjectileActor::StartDestroyTimer()
+{
+	GetWorldTimerManager().SetTimer(DestroyTimer, this, &AProjectileActor::DestroyTimerFinished, DestroyTime);
+}
+
+void AProjectileActor::ExplodeDamage()
+{
+	APawn* FiringPawn = GetInstigator();
+	//由于我们改变了OnHit事件的处理位置，现在所有服务器都可以处理，但是伤害的计算只需要在服务器上完成
+	if (FiringPawn && HasAuthority())
+	{
+		AController* FiringController = FiringPawn->GetController();
+		if (FiringController)
+		{
+			//Damage 5.f~DamageBaseFloat 
+			//Radius, 200~500  <200
+			UGameplayStatics::ApplyRadialDamageWithFalloff(this,
+				DamageBaseFloat,
+				5.f,
+				GetActorLocation(),
+				DamageInnerRadius, // inter Radius
+				DamageOuterRadius, // outer Radius
+				1.f,
+				UDamageType::StaticClass(),
+				TArray<AActor*>(),
+				this,
+				FiringController);
+
+		}
 	}
 }
 

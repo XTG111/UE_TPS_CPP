@@ -44,12 +44,42 @@ public:
 
 	//击中特效
 	UPROPERTY(EditAnywhere)
-		class UParticleSystem* ImpactParticles;
+		UParticleSystem* ImpactParticles;
 	UPROPERTY(EditAnywhere)
 		class USoundCue* ImpactSound;
 
 	UPROPERTY(EditAnywhere)
 		float DamageBaseFloat = 10.f;
 
+	//NiagaraSystem,用于生成Niagara
+	UPROPERTY(EditAnywhere)
+		class UNiagaraSystem* TrailSystem;
+	//NiagaraComponent 用来存储生成的粒子
+	UPROPERTY(EditAnywhere)
+		class UNiagaraComponent* TrailSystemComp;
+	void SpawnTrailSystem();
 
+	//定时器结束调用
+	void DestroyTimerFinished();
+	//调用开启定时器
+	void StartDestroyTimer();
+
+	//子弹网格体,只在实际需要的类中创建比如火箭弹
+	UPROPERTY(EditAnywhere)
+		UStaticMeshComponent* ProjectileMeshComp;
+
+	//爆炸伤害
+	void ExplodeDamage();
+
+	//伤害范围
+	UPROPERTY(EditAnywhere)
+		float DamageInnerRadius = 200.f;
+	UPROPERTY(EditAnywhere)
+		float DamageOuterRadius = 500.f;
+
+private:
+	//定时器，控制TrailSystem消失再摧毁Rocket
+	FTimerHandle DestroyTimer;
+	UPROPERTY(EditAnywhere)
+		float DestroyTime = 3.f;
 };

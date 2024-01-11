@@ -34,26 +34,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Sound")
 		USoundAttenuation* LoopingSoundAtt;
 
-	//定时器结束调用
-	void DestroyTimerFinished();
-
-	//NiagaraSystem,用于生成Niagara
-	UPROPERTY(EditAnywhere)
-		class UNiagaraSystem* TrailSystem;
-	//NiagaraComponent 用来存储生成的粒子
-	UPROPERTY(EditAnywhere)
-		class UNiagaraComponent* TrailSystemComp;
-
 	//火箭子弹的专属运动组件
 	UPROPERTY(VisibleAnywhere)
 		class URocketMovementComponent* RocketMovementComp;
 
 private:
-	UPROPERTY(EditAnywhere)
-		UStaticMeshComponent* RocketMeshComp;
 
-	//定时器，控制TrailSystem消失再摧毁Rocket
-	FTimerHandle DestroyTimer;
-	UPROPERTY(EditAnywhere)
-		float DestroyTime = 3.f;
 };
