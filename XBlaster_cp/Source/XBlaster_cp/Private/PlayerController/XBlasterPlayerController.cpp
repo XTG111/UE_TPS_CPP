@@ -43,6 +43,12 @@ void AXBlasterPlayerController::PollInit()
 				SetHUDHealth(HUDHealth, HUDMaxHealth);
 				SetHUDScore(HUDScore);
 				SetHUDDefeats(HUDDefeats);
+				//当UI初始化成功，直接调用角色战斗组件中的手雷数量
+				AXCharacter* XCharacter = Cast<AXCharacter>(GetPawn());
+				if (XCharacter && XCharacter->GetCombatComp())
+				{
+					SetHUDGrenadeAmount(XCharacter->GetCombatComp()->GetGrenades());
+				}
 			}
 		}
 	}
@@ -440,3 +446,22 @@ void AXBlasterPlayerController::HandleCoolDown()
 		}
 	}
 }
+
+void AXBlasterPlayerController::SetHUDGrenadeAmount(int32 GrenadeAmount)
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->GrenadeAmount;
+	if (bHUDvalid)
+	{
+		FString GrenadeText = FString::Printf(TEXT("%d"), FMath::FloorToInt(GrenadeAmount));
+		XBlasterHUD->CharacterOverlayWdg->GrenadeAmount->SetText(FText::FromString(GrenadeText));
+	}
+	else
+	{
+		HUDGrenadeAmount = GrenadeAmount;
+	}
+}
+

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "XBlaster_cp/XTypeHeadFile/WeaponTypes.h"
+#include "Interfaces/FObjectInterface.h"
 #include "WeaponParent.generated.h"
 //作为武器父类被武器实例类继承
 
@@ -23,7 +24,7 @@ enum class EWeaponState :uint8
 
 
 UCLASS()
-class XBLASTER_CP_API AWeaponParent : public AActor
+class XBLASTER_CP_API AWeaponParent : public AActor, public IFObjectInterface
 {
 	GENERATED_BODY()
 	
@@ -149,6 +150,9 @@ public:
 
 	//启用自定义深度
 	void EnableCustomDepth(bool bEnable);
+
+	//接口用于拾取武器
+	void FPickObject_Implementation(APawn* InstigatorPawn);
 
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点

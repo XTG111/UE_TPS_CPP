@@ -40,6 +40,8 @@ public:
 	void SetHUDAnnouncementCountDown(float CountDownTime);
 	//设置当前比赛状态
 	void OnMatchStateSet(FName State);
+	//设置手榴弹数
+	void SetHUDGrenadeAmount(int32 GrenadeAmount);
 
 protected:
 	virtual void BeginPlay() override;
@@ -121,4 +123,5 @@ private:
 	float HUDScore;
 	float HUDMaxHealth;
 	int32 HUDDefeats;
+	int32 HUDGrenadeAmount;
 };

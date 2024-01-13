@@ -29,4 +29,6 @@ public:
 		UTextBlock* CarriedAmmoAmount;
 	UPROPERTY(meta = (BindWidget))
 		UTextBlock* GameTimeText;
+	UPROPERTY(meta = (BindWidget))
+		UTextBlock* GrenadeAmount;
 };

@@ -78,6 +78,13 @@ AXCharacter::AXCharacter()
 
 	//构建时间轴组件
 	DissolveTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DissolveTimelineComp"));
+
+	//手榴弹
+	AttachGrenade = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GrenadeComp"));
+	//GrenadeSocket
+	AttachGrenade->SetupAttachment(GetMesh(), FName("GrenadeSocket"));
+	AttachGrenade->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	AttachGrenade->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -98,6 +105,10 @@ void AXCharacter::PostInitializeComponents()
 	if (CombatComp)
 	{
 		CombatComp->CharacterEx = this;
+	}
+	if (PropertyComp)
+	{
+		PropertyComp->XCharacter = this;
 	}
 }
 
@@ -124,6 +135,11 @@ void AXCharacter::BeginPlay()
 	if (HasAuthority())
 	{
 		OnTakeAnyDamage.AddDynamic(this, &AXCharacter::ReceivedDamage);
+	}
+
+	if (AttachGrenade)
+	{
+		AttachGrenade->SetVisibility(false);
 	}
 }
 
@@ -196,6 +212,8 @@ void AXCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AXCharacter::Fireing);
 	PlayerInputComponent->BindAction("Fire", IE_Released, this, &AXCharacter::ReFired);
 	PlayerInputComponent->BindAction("ReloadWeapon", IE_Pressed, this, &AXCharacter::ReloadWeapon);
+	PlayerInputComponent->BindAction("ThrowGrenade", IE_Pressed, this, &AXCharacter::Grenade);
+	PlayerInputComponent->BindAction("DropWeapon", IE_Pressed, this, &AXCharacter::DropWeapon);
 }
 
 void AXCharacter::MoveForward(float value)
@@ -293,6 +311,22 @@ void AXCharacter::ReloadWeapon()
 	}
 }
 
+void AXCharacter::Grenade()
+{
+	if (CombatComp)
+	{
+		CombatComp->ThrowGrenade();
+	}
+}
+
+void AXCharacter::DropWeapon()
+{
+	if (CombatComp && CombatComp->EquippedWeapon)
+	{
+		CombatComp->DropEquippedWeapon();
+	}
+}
+
 
 //装备武器
 //只需要在服务器上验证，如果在服务器上的Actor
@@ -306,12 +340,13 @@ void AXCharacter::EquipWeapon()
 	}
 }
 
-//在客户端上的Actor执行
+//在服务器上的Actor执行
 void AXCharacter::ServerEquipWeapon_Implementation()
 {
 	if (CombatComp)
 	{
-		CombatComp->EquipWeapon(OverlappingWeapon);
+		CombatComp->NewEquipWeapon();
+		//CombatComp->EquipWeapon(OverlappingWeapon);
 	}
 }
 
@@ -614,6 +649,16 @@ void AXCharacter::PlayReloadMontage()
 			break;
 		}
 		AnimInstance->Montage_JumpToSection(SectionName);
+	}
+}
+
+//GrenadeMontage
+void AXCharacter::PlayGrenadeMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && GrenadeMontage)
+	{
+		AnimInstance->Montage_Play(GrenadeMontage);
 	}
 }
 

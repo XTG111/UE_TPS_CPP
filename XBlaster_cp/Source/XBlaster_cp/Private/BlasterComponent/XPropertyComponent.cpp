@@ -42,6 +42,9 @@ void UXPropertyComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 void UXPropertyComponent::ReceivedDamage(float Damage, AController* InstigatorController)
 {
+	//当角色死亡后，就不能再次接受伤害
+	if (XCharacter->GetbElimed()) return;
+
 	Health = FMath::Clamp(Health - Damage, 0.f, MAXHealth);
 	XCharacter->UpdateHUDHealth();
 	//将受击动画的播放改到这里，降低RPC调用的负担

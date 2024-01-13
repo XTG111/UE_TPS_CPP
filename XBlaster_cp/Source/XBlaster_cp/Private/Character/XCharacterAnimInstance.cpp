@@ -124,7 +124,7 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 		}
 	}
 	
-	bUseFABRIK = XCharacter->GetCombateState() != ECombatState::ECS_Reloading;
-	bUseAimOffset = XCharacter->GetCombateState() != ECombatState::ECS_Reloading; //可以加上 !XCharacter->bDisableGamePlay 使得在冷却时间不能转动
-	bTransformRightHand = XCharacter->GetCombateState() != ECombatState::ECS_Reloading; //可以加上 !XCharacter->bDisableGamePlay 使得在冷却时间不能转动
+	bUseFABRIK = XCharacter->GetCombateState() == ECombatState::ECS_Unoccupied;
+	bUseAimOffset = XCharacter->GetCombateState() == ECombatState::ECS_Unoccupied; //可以加上 !XCharacter->bDisableGamePlay 使得在冷却时间不能转动
+	bTransformRightHand = XCharacter->GetCombateState() == ECombatState::ECS_Unoccupied; //可以加上 !XCharacter->bDisableGamePlay 使得在冷却时间不能转动
 }

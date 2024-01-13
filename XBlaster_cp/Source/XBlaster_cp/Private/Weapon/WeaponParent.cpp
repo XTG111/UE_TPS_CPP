@@ -13,6 +13,8 @@
 #include "PlayerController/XBlasterPlayerController.h"
 #include "Character/XCharacter.h"
 #include "BlasterComponent/CombatComponent.h"
+#include "Components/PrimitiveComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
 AWeaponParent::AWeaponParent()
@@ -50,8 +52,6 @@ AWeaponParent::AWeaponParent()
 	//拾取提示
 	PickUpWidgetComp = CreateDefaultSubobject<UWidgetComponent>(TEXT("PickUpWidgetComp"));
 	PickUpWidgetComp->SetupAttachment(RootComponent);
-	
-
 }
 
 void AWeaponParent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -263,6 +263,11 @@ void AWeaponParent::Drop()
 	SetWeaponState(EWeaponState::EWS_Dropped);
 	FDetachmentTransformRules DetachRules(EDetachmentRule::KeepWorld, true);
 	WeaponMesh->DetachFromComponent(DetachRules);
+
+	FVector ForwardVector = UKismetMathLibrary::GetForwardVector(GetActorRotation());
+	FVector ImpulseVec = ForwardVector * 165.f;
+	//丢弃武器添加径向力
+	WeaponMesh->AddImpulse(ImpulseVec);
 	SetOwner(nullptr);
 	XCharacter = nullptr;
 	XBlasterPlayerController = nullptr;
@@ -284,6 +289,16 @@ void AWeaponParent::EnableCustomDepth(bool bEnable)
 	if (WeaponMesh)
 	{
 		WeaponMesh->SetRenderCustomDepth(bEnable);
+	}
+}
+
+//使用接口通信
+void AWeaponParent::FPickObject_Implementation(APawn* InstigatorPawn)
+{
+	XCharacter = Cast<AXCharacter>(InstigatorPawn);
+	if (XCharacter && XCharacter->GetCombatComp())
+	{
+		XCharacter->GetCombatComp()->EquipWeapon(this);
 	}
 }
 

@@ -2459,3 +2459,154 @@ SetRenderCustomDepth(bEnable)为主要控制函数，之后通过武器是否装
 为了传递给客户端，我们利用武器状态是replicated的，利用repnotify进行传递。
 
 在项目设置下，customdepth-> custom ... pass :enable with stencil
+
+# 手榴弹
+通过添加状态来限制其他功能的影响，**可以尝试利用Fire函数，添加武器type 根据不同的武器播放不同的动画**，就如同上面那个霰弹枪的一样
+
+教程逻辑是可以在持枪时投掷通过按键，投掷过程中将武器附加到左手，右手生成手雷，结束后重新附加到右手
+
+# 手榴弹的抛射方向在客户端和服务器上
+利用ServerRPC将准星位置传递到服务器上，服务器上再生成spawnactor的轨迹
+
+# 弹药拾取
+利用重叠事件，重叠时与战斗组件通信，修改Map中的备弹数即可
+```c++
+void UCombatComponent::PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount)
+{
+	//增加弹药量 CarriedAmmo -> OnRep && TMap
+	if (CarriedAmmoMap.Contains(WeaponType))
+	{
+		//控制最大备弹数
+		CarriedAmmoMap[WeaponType] = FMath::Clamp(CarriedAmmoMap[WeaponType] + AmmoAmount, 0, MaxAmmoAmount);
+		UpdateCarriedAmmo();
+	}
+	if (EquippedWeapon && EquippedWeapon->Ammo == 0 && EquippedWeapon->WeaponType == WeaponType)
+	{
+		ReloadWeaponAutomatic();
+	}
+
+}
+```
+
+# 使用接口进行交互设置
+对武器继承了一个接口，按下F键后会开启射线检测，检测是否有符合该接口的Actor，如果有将调用Equip函数进行装配。
+主要流程如下
+1. 新建接口，其中新建一个函数作为接口函数
+```c++
+UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	void FPickObject(APawn* InstigatorPawn);
+```
+2. 武器头文件中继承该接口,并定义这个函数
+```c++
+//.h
+class XBLASTER_CP_API AWeaponParent : public AActor, public IFObjectInterface
+//接口用于拾取武器
+void FPickObject_Implementation(APawn* InstigatorPawn);
+
+//.cpp
+//使用接口通信
+void AWeaponParent::FPickObject_Implementation(APawn* InstigatorPawn)
+{
+	XCharacter = Cast<AXCharacter>(InstigatorPawn);
+	if (XCharacter && XCharacter->GetCombatComp())
+	{
+		XCharacter->GetCombatComp()->EquipWeapon(this);
+	}
+}
+```
+因为之前将装备武器的函数直接写在了战斗组件中，所以可以这样直接调用即可
+3. 战斗组件实现射线检测调用该接口函数
+```
+//角色组件中的按键响应
+void AXCharacter::ServerEquipWeapon_Implementation()
+{
+	if (CombatComp)
+	{
+		CombatComp->NewEquipWeapon();
+		//CombatComp->EquipWeapon(OverlappingWeapon);
+	}
+}
+
+//战斗组件的射线检测函数
+void UCombatComponent::NewEquipWeapon()
+{
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	AActor* MyOwner = GetOwner();
+	//FVector Start; = EyeLocation
+	FVector EyeLocation;
+	FRotator EyeRotation;
+	MyOwner->GetActorEyesViewPoint(EyeLocation, EyeRotation);
+	FVector End = EyeLocation + (EyeRotation.Vector() * 1000);
+	//使用面扫
+	TArray<FHitResult> Hits;
+	float Radius = 30.f;
+	FCollisionShape Shape;
+	Shape.SetSphere(30.0f);
+	bool bBlockingHit = GetWorld()->SweepMultiByObjectType(Hits, EyeLocation, End, FQuat::Identity, ObjectQueryParams, Shape);
+	FColor LineColor = bBlockingHit ? FColor::Green : FColor::Red;
+	for (FHitResult Hit : Hits) {
+		AActor* HitActor = Hit.GetActor();
+		if (HitActor) {
+		//判断检测到的物体是否拥有该接口
+			if (HitActor->Implements<UFObjectInterface>()) {
+				APawn* MyPawn = Cast<APawn>(MyOwner);
+				//执行接口函数
+				IFObjectInterface::Execute_FPickObject(HitActor, MyPawn);
+				break;
+			}
+		}
+		//DrawDebugSphere(GetWorld(), Hit.ImpactPoint, Radius, 32, LineColor, false, 2.0f);
+	}
+	//DrawDebugLine(GetWorld(), EyeLocation, End, LineColor, false, 2.0f, 0, 2.0f);
+}
+```
+主要就两点：
+- 判断该Actor是否具有接口 HitActor->Implements<UFObjectInterface>()
+- 执行接口函数：IFObjectInterface::Execute_FPickObject(HitActor, MyPawn)
+
+上述写法的具体工作流程就是，武器具有接口
+首先角色按下F，调用战斗组件中的射线检测，检测到具有接口的武器，武器执行接口函数，接口函数调用战斗组件中的装备武器实现装备。
+
+# 丢弃武器后UI的更改和二次装备的同步
+首先武器现有弹量是存在武器自身的，具有OnRep函数
+其次备有弹量时战斗组件的，属于角色，具有OnRep函数
+战斗组件的已装备武器也是有OnRep函数的
+
+在丢弃武器后我们需要将UI上的弹量全部设置为0，可以通过直接设置UI数值进行，所以此时的备有弹量和武器现有弹量是没有更改的所以OnRep函数不会被调用，这样如果我们在前两个函数中设置UI的更新那是不行的。所以我们将UI的更新直接写在装备武器的OnRep上
+```c++
+//丢弃武器，调用武器代码中的Drop
+void UCombatComponent::DropEquippedWeapon()
+{
+	CombatState = ECombatState::ECS_Unoccupied;
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Drop();
+	}
+	//丢枪后更新UI
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+	if (CharacterEx->IsLocallyControlled() && XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHUDCarriedAmmo(0);
+		XBlasterPlayerController->SetHUDWeaponAmmo(0);
+	}
+	EquippedWeapon = nullptr;
+	CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = true;
+	CharacterEx->bUseControllerRotationYaw = false;
+	if(CharacterEx && !CharacterEx->HasAuthority()) ServerDropWeapon();
+}
+
+//二次装备，只有本地客户端更新UI
+void UCombatComponent::OnRep_EquippedWeapon()
+{
+	...
+	if (CharacterEx && CharacterEx->IsLocallyControlled())
+	{
+		UpdateCarriedAmmo();//更新备弹的集成函数
+		XBlasterPlayerController->SetHUDWeaponAmmo(EquippedWeapon->Ammo);
+	}
+	...
+}
+```
+
+# BUFF

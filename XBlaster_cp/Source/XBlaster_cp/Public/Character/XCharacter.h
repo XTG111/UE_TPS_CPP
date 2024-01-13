@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.IInteractWithCrosshairInterface
 
 #pragma once
 
@@ -44,6 +44,8 @@ public:
 	void PlayElimMontage();
 	//换弹动画
 	void PlayReloadMontage();
+	//投掷动画
+	void PlayGrenadeMontage();
 
 	//控制模拟机器上的转向动画，repnotify;
 	virtual void OnRep_ReplicatedMovement() override;
@@ -86,6 +88,8 @@ protected:
 	virtual void Jump() override;
 	virtual void StopJumping() override;
 	void ReloadWeapon();
+	void Grenade();
+	void DropWeapon();
 	UPROPERTY(BlueprintReadOnly, Category = MoveFunc)
 		float ForwardValue;
 	UPROPERTY(BlueprintReadOnly, Category = MoveFunc)
@@ -133,6 +137,8 @@ protected:
 		UAnimMontage* ElimMontage;
 	UPROPERTY(EditAnywhere, Category = Combat)
 		UAnimMontage* ReloadMontage;
+	UPROPERTY(EditAnywhere, Category = Combat)
+		UAnimMontage* GrenadeMontage;
 
 
 private:
@@ -239,6 +245,10 @@ private:
 	UPROPERTY()
 		class AXBlasterPlayerState* XBlasterPlayerState;
 
+	//Grenade component
+	UPROPERTY(VisibleAnywhere)
+		UStaticMeshComponent* AttachGrenade;
+
 public:	
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
 		bool bUnderJump = false;
@@ -287,6 +297,8 @@ public:
 	ECombatState GetCombateState() const;
 
 	FORCEINLINE UAnimMontage* GetRelodMontage() const { return ReloadMontage; }
+	FORCEINLINE UStaticMeshComponent* GetGrenadeComp() const { return AttachGrenade; }
+	FORCEINLINE bool GetbElimed() const { return bElimmed; }
 
 public:
 	//控制哪些操作将被禁用

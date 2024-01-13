@@ -41,6 +41,6 @@ void AProjectileGrenade::OnBounce(const FHitResult& ImpactResult, const FVector&
 {
 	if (BounceCue)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, BounceCue, GetActorLocation(), 0.75f, 0.5f);
+		UGameplayStatics::PlaySoundAtLocation(this, BounceCue, GetActorLocation(), 0.5f, 0.2f);
 	}
 }

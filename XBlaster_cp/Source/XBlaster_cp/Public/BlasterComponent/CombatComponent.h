@@ -39,6 +39,16 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void ShotGunShellReload();
 
+	//动画通知调用该函数，执行投掷结束后状态的切换
+	UFUNCTION(BlueprintCallable)
+		void ThrowGrenadeFinished();
+	//扔出手雷
+	UFUNCTION(BlueprintCallable)
+		void LaunchGrenade();
+	//ServerRPC将投掷目标点传给服务器
+	UFUNCTION(Server, Reliable)
+		void ServerLauncherGrenade(const FVector_NetQuantize& Target);
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -79,6 +89,29 @@ protected:
 
 	//计算重新装弹
 	int32 AmmountToReload();
+
+	//手雷的UI
+	UPROPERTY(ReplicatedUsing = OnRep_Grenades)
+	int32 GrenadeAmount = 4;
+	UFUNCTION()
+		void OnRep_Grenades();
+	UPROPERTY(EditAnywhere)
+		int32 MaxGrenade = 4;
+
+	void UpdateHUDGrenade();
+
+	//丢弃
+	UFUNCTION(Server, Reliable)
+		void ServerDropWeapon();
+
+	//投掷
+	void ThrowGrenade();
+	UFUNCTION(Server, Reliable)
+		void ServerThrowGrenade();
+
+	//投掷手雷的类
+	UPROPERTY(EditAnywhere)
+		TSubclassOf<class AProjectileActor> GrenadeClass;
 
 private:
 	//角色实例
@@ -153,6 +186,9 @@ private:
 		void OnRep_CarriedAmmo();
 	//存储武器和对应的备弹数
 	TMap<EWeaponType, int32> CarriedAmmoMap;
+	//最大备弹数
+	UPROPERTY(EditAnywhere)
+		int32 MaxAmmoAmount = 200;
 	//步枪备弹数初始值
 	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
 		int32 StartingARAmmo = 30;
@@ -174,8 +210,6 @@ private:
 	//榴弹枪备弹初始值
 	UPROPERTY(EditAnywhere, Category = "CarriedAmmo")
 		int32 GrenadeLauncherAmmo = 10;
-	
-
 	//初始化Hash
 	void InitializeCarriedAmmo();	
 
@@ -185,8 +219,22 @@ private:
 	UFUNCTION()
 		void OnRep_CombatState();
 
+	//对于装备武器的一些功能重写
+protected:
+	void ChangeEquippedWeapon();
+	void AttachActorToRightHand(AActor* ActorToAttach);
+	void AttachActorToLeftHand(AActor* ActorToAttach);
+	void UpdateCarriedAmmo();
+	void PlayEquipWeaponSound();
+	void ReloadWeaponAutomatic();
+	//丢弃枪械
+	void DropEquippedWeapon();
+	//投掷时显示手雷
+	void ShowAttachedGrenade(bool bShowGrenade);
+
 public:	
 	void EquipWeapon(class AWeaponParent* WeaponToEquip);
+	void NewEquipWeapon();
 	//是否还有足够的子弹
 	bool HaveAmmoCanFire();
 
@@ -202,7 +250,15 @@ public:
 	//用于跳转到section，这样客户端和服务器都可以调用
 	void JumpToShotGunEnd();
 
+	//用于PickUp更新拾取后的备弹数
+	void PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount);
+
+	//丢枪时，枪内的子弹数
+	UPROPERTY(VisibleAnywhere)
+		int32 SavedAmmo;
+
 	//获取武器
 	FORCEINLINE AWeaponParent* GetEquippedWeapon() const { return EquippedWeapon; }
 	FORCEINLINE bool GetbAiming() const { return bUnderAiming; }
+	FORCEINLINE int32 GetGrenades() const { return GrenadeAmount; }
 };
