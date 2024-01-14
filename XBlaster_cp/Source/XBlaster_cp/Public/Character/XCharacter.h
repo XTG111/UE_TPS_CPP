@@ -54,6 +54,8 @@ public:
 	UFUNCTION()
 		void UpdateHUDHealth();
 	UFUNCTION()
+		void UpdateHUDShield();
+	UFUNCTION()
 		void ReceivedDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser);
 
 
@@ -299,6 +301,7 @@ public:
 	FORCEINLINE UAnimMontage* GetRelodMontage() const { return ReloadMontage; }
 	FORCEINLINE UStaticMeshComponent* GetGrenadeComp() const { return AttachGrenade; }
 	FORCEINLINE bool GetbElimed() const { return bElimmed; }
+	FORCEINLINE UXPropertyComponent* GetPropertyComp() const { return PropertyComp; }
 
 public:
 	//控制哪些操作将被禁用

@@ -40,12 +40,13 @@ void AXBlasterPlayerController::PollInit()
 			CharacterOverlayWdg = XBlasterHUD->CharacterOverlayWdg;
 			if (CharacterOverlayWdg)
 			{
-				SetHUDHealth(HUDHealth, HUDMaxHealth);
-				SetHUDScore(HUDScore);
-				SetHUDDefeats(HUDDefeats);
+				if (bInitializeHealth) SetHUDHealth(HUDHealth, HUDMaxHealth);
+				if (bInitializeShield) SetHUDShield(HUDShield, HUDMaxShield);
+				if (bInitializeScore) SetHUDScore(HUDScore);
+				if (bInitializeDefeats) SetHUDDefeats(HUDDefeats);
 				//当UI初始化成功，直接调用角色战斗组件中的手雷数量
 				AXCharacter* XCharacter = Cast<AXCharacter>(GetPawn());
-				if (XCharacter && XCharacter->GetCombatComp())
+				if (XCharacter && XCharacter->GetCombatComp() && bInitializeGrenade)
 				{
 					SetHUDGrenadeAmount(XCharacter->GetCombatComp()->GetGrenades());
 				}
@@ -211,9 +212,33 @@ void AXBlasterPlayerController::SetHUDHealth(float Health, float MaxHealth)
 	//如果没有绘制成功，那么将值存入到变量中，之后在PollInit中再次绘制
 	else
 	{
-		bInitializeCharacterOverlay = true;
+		bInitializeHealth = true;
 		HUDHealth = Health;
 		HUDMaxHealth = MaxHealth;
+	}
+}
+
+void AXBlasterPlayerController::SetHUDShield(float Shield, float MaxShield)
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->ShieldBar &&
+		XBlasterHUD->CharacterOverlayWdg->ShieldText;
+	if (bHUDvalid)
+	{
+		const float ShieldPercent = Shield / MaxShield;
+		XBlasterHUD->CharacterOverlayWdg->ShieldBar->SetPercent(ShieldPercent);
+		FString ShieldText = FString::Printf(TEXT("%d/%d"), FMath::CeilToInt(Shield), FMath::CeilToInt(MaxShield));
+		XBlasterHUD->CharacterOverlayWdg->ShieldText->SetText(FText::FromString(ShieldText));
+	}
+	//如果没有绘制成功，那么将值存入到变量中，之后在PollInit中再次绘制
+	else
+	{
+		bInitializeShield = true;
+		HUDShield = Shield;
+		HUDMaxShield = MaxShield;
 	}
 }
 
@@ -242,7 +267,7 @@ void AXBlasterPlayerController::SetHUDScore(float Score)
 	}
 	else
 	{
-		bInitializeCharacterOverlay = true;
+		bInitializeScore = true;
 		HUDScore = Score;
 	}
 }
@@ -261,7 +286,7 @@ void AXBlasterPlayerController::SetHUDDefeats(int32 Defeats)
 	}
 	else
 	{
-		bInitializeCharacterOverlay = true;
+		bInitializeDefeats = true;
 		HUDDefeats = Defeats;
 	}
 }
@@ -461,6 +486,7 @@ void AXBlasterPlayerController::SetHUDGrenadeAmount(int32 GrenadeAmount)
 	}
 	else
 	{
+		bInitializeGrenade = true;
 		HUDGrenadeAmount = GrenadeAmount;
 	}
 }

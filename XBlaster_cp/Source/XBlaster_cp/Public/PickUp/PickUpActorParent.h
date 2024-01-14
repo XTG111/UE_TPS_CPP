@@ -51,6 +51,14 @@ private:
 	UPROPERTY(EditAnywhere)
 		UStaticMeshComponent* PickUpMesh;
 
+	/*用于Buff模块*/
+	//销毁时生成
+	UPROPERTY(VisibleAnywhere)
+		class UNiagaraComponent* PickupEffectComponent;
+	//粒子特效
+	UPROPERTY(EditAnywhere)
+		class UNiagaraSystem* PickupEffect;
+
 public:
 
 };

@@ -23,6 +23,8 @@ public:
 
 	//设置Health
 	void SetHUDHealth(float Health, float MaxHealth);
+	//设置Shield
+	void SetHUDShield(float Shield, float MaxShield);
 
 	void OnPossess(APawn* InPawn) override;
 
@@ -118,10 +120,17 @@ private:
 
 
 	//通过添加布尔值，解决HUD的绘制，血条这些的绘制是需要有actor之后才能够绘制，但我们修改了绘制UI的调用，导致我们绘制UI时这些属性还没有
-	bool bInitializeCharacterOverlay = false;
+	bool bInitializeHealth = false;
+	bool bInitializeScore = false;
+	bool bInitializeDefeats = false;
+	bool bInitializeGrenade = false;
+	bool bInitializeShield = false;
+
 	float HUDHealth;
 	float HUDScore;
 	float HUDMaxHealth;
 	int32 HUDDefeats;
 	int32 HUDGrenadeAmount;
+	float HUDShield;
+	float HUDMaxShield;
 };

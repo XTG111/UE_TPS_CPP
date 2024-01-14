@@ -2610,3 +2610,107 @@ void UCombatComponent::OnRep_EquippedWeapon()
 ```
 
 # BUFF
+添加了回血，加速，弹跳BUFF，基本原理一直，在PickUp组件中利用OnSphereOverlap对对应的数值进行修改
+```c++
+//pickup.cpp
+void APickUpActorHealth::OnShpereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	Super::OnShpereOverlap(OverlappedComponent, OtherActor, OtherComponent, OtherBodyIndex, bFromSweep, SweepResult);
+	AXCharacter* XCharacter = Cast<AXCharacter>(OtherActor);
+	if (XCharacter)
+	{
+		UXPropertyComponent* PropertyComponent = XCharacter->GetPropertyComp();
+		if (PropertyComponent)
+		{
+			PropertyComponent->HealCharacter(HealthAmount, HealingTime);
+		}
+	}
+	Destroy();
+}
+```
+我们将对应值的修改写在了角色属性组件中。由于血量是设计为可复制的属性，然后其回血的表现又只需要在本地客户端体现，所以可以直接利用OnRep函数进行传递
+1. 对于血量
+想法是接受Buff后，按时间均匀回血，所以可以先计算增长速率，和总增长量
+```c++
+//propertycomp
+void UXPropertyComponent::HealCharacter(float HealAmount, float HealingTime)
+{
+	bHealing = true;
+	AmountToHeal += HealAmount;
+	Healingrate = HealAmount / HealingTime;
+}
+```
+更新UI，每Tick调用
+```c++
+void UXPropertyComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// ...
+	HealRampUp(DeltaTime);
+}
+
+void UXPropertyComponent::HealRampUp(float DeltaTime)
+{
+	if (!bHealing || XCharacter == nullptr || XCharacter->IsElimmed()) return;
+
+	const float HealthisFrame = Healingrate * DeltaTime;
+	//增加血量
+	Health = FMath::Clamp(Health + HealthisFrame, 0.f, MAXHealth);
+	if (XCharacter->HasAuthority())
+	{
+		XCharacter->UpdateHUDHealth();
+	}
+	//在备用血量中减少
+	AmountToHeal -= HealthisFrame;
+	if (AmountToHeal <= 0.f || Health >= MAXHealth)
+	{
+		bHealing = false;
+		AmountToHeal = 0.f;
+	}
+}
+```
+
+对于更新速度，弹跳就有些区别，因为需要在所有客户端都有体现，所以需要添加一个广播RPC当本地客户端的数值改变后调用这个RPC，然后传给其他客户端和服务器。
+然后使用定时器实现延时，即过了一段时间buff消失
+```c++
+//propertycomp
+
+//供Pickup组件重叠响应调用
+void UXPropertyComponent::JumpBuff(float JumpZHight, float BuffTime)
+{
+	if (XCharacter == nullptr) return;
+	XCharacter->GetWorldTimerManager().SetTimer(JumpBuffTimer, this, &UXPropertyComponent::ResetJump, BuffTime);
+	if (XCharacter->GetCharacterMovement())
+	{
+		XCharacter->GetCharacterMovement()->JumpZVelocity = JumpZHight;
+	}
+	MulticasatJumpBuff(JumpZHight);
+}
+
+//初始化存储最开始的数值，在角色cpp中调用
+void UXPropertyComponent::SetInitialJump(float JumpZHight)
+{
+	InitialJumpZHight = JumpZHight;
+}
+
+//当buff效果结束，恢复原始数值
+void UXPropertyComponent::ResetJump()
+{
+	if (XCharacter == nullptr) return;
+	if (XCharacter->GetCharacterMovement())
+	{
+		XCharacter->GetCharacterMovement()->JumpZVelocity = InitialBaseSpeed;
+	}
+	MulticasatJumpBuff(InitialJumpZHight);
+	XCharacter->GetWorldTimerManager().ClearTimer(JumpBuffTimer);
+}
+
+//广播rpc
+void UXPropertyComponent::MulticasatJumpBuff_Implementation(float JumpZHight)
+{
+	if (XCharacter && XCharacter->GetCharacterMovement()) 
+	{
+		XCharacter->GetCharacterMovement()->JumpZVelocity = JumpZHight;
+	}
+}

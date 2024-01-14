@@ -7,6 +7,9 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "XBlaster_cp/XTypeHeadFile/WeaponTypes.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 // Sets default values
 APickUpActorParent::APickUpActorParent()
@@ -32,6 +35,9 @@ APickUpActorParent::APickUpActorParent()
 
 	PickUpMesh->SetRenderCustomDepth(true);
 	PickUpMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_PURPLE);
+
+	PickupEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("PickupEffectComp"));
+	PickupEffectComponent->SetupAttachment(RootComponent);
 }
 
 // Called when the game starts or when spawned
@@ -59,6 +65,16 @@ void APickUpActorParent::Tick(float DeltaTime)
 
 void APickUpActorParent::Destroyed()
 {
+	if (PickupEffect)
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			this,
+			PickupEffect,
+			GetActorLocation(),
+			GetActorRotation()
+		);
+	}
+
 	Super::Destroyed();
 
 	if (PickUpSound)

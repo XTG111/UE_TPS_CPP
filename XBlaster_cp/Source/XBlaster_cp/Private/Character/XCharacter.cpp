@@ -109,6 +109,8 @@ void AXCharacter::PostInitializeComponents()
 	if (PropertyComp)
 	{
 		PropertyComp->XCharacter = this;
+		PropertyComp->SetInitialSpeed(GetCharacterMovement()->MaxWalkSpeed, GetCharacterMovement()->MaxWalkSpeedCrouched);
+		PropertyComp->SetInitialJump(GetCharacterMovement()->JumpZVelocity);
 	}
 }
 
@@ -130,6 +132,7 @@ void AXCharacter::BeginPlay()
 	
 	//
 	UpdateHUDHealth();
+	UpdateHUDShield();
 
 	//OnTakeAnyDamage.AddDynamic(this, &AXCharacter::ReceivedDamage);
 	if (HasAuthority())
@@ -713,6 +716,15 @@ void AXCharacter::UpdateHUDHealth()
 	if (XBlasterPlayerController)
 	{
 		XBlasterPlayerController->SetHUDHealth(PropertyComp->Health, PropertyComp->MAXHealth);
+	}
+}
+
+void AXCharacter::UpdateHUDShield()
+{
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(Controller) : XBlasterPlayerController;
+	if (XBlasterPlayerController)
+	{
+		XBlasterPlayerController->SetHUDShield(PropertyComp->Shield, PropertyComp->MAXShield);
 	}
 }
 
