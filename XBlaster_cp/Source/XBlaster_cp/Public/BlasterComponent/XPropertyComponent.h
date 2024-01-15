@@ -26,6 +26,9 @@ protected:
 	//按比例提高生命值
 	void HealRampUp(float DeltaTime);
 
+	//按比例提高shield
+	void ShieldRampUp(float DeltaTime);
+
 public:	
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -41,6 +44,8 @@ public:
 
 	//治疗角色
 	void HealCharacter(float HealAmount, float HealingTime);
+	//恢复护盾
+	void ShieldReplenish(float ShieldAmount, float ShealingTime);
 	
 	//加速
 	void SpeedBuff(float BuffBaseSpeed, float BuffCrouchSpeed, float BuffTime);
@@ -65,8 +70,8 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Player State")
 		float MAXShield = 50.f;
 	//可复制参数
-	UPROPERTY(VisibleAnywhere, ReplicatedUsing = OnRep_SheildChange, Category = "Player State")
-		float Shield = 50.0f;
+	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_SheildChange, Category = "Player State")
+		float Shield = 0.0f;
 	//使用参数决定播放哪一个动画
 	UFUNCTION()
 		void OnRep_SheildChange(float LastShield);
@@ -78,6 +83,11 @@ private:
 	bool bHealing = false;
 	float Healingrate = 0.f;
 	float AmountToHeal = 0.f;
+
+	//护盾buff
+	bool bShield = false;
+	float Shieldgrate = 0.f;
+	float AmountToShield = 0.f;
 
 	//速度Buff
 	FTimerHandle SpeedBuffTimer;

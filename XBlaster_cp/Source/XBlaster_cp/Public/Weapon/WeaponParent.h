@@ -154,6 +154,12 @@ public:
 	//接口用于拾取武器
 	void FPickObject_Implementation(APawn* InstigatorPawn);
 
+	//是否可以销毁武器
+	//只将默认武器设为true
+	//其余保持false
+	//在actor死亡时会销毁默认武器
+	bool bDestroyWeapon = false;
+
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点
 	UFUNCTION()

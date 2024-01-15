@@ -219,6 +219,10 @@ private:
 	UFUNCTION()
 		void OnRep_CombatState();
 
+	/*默认武器*/
+	UPROPERTY(EditAnywhere)
+		TSubclassOf<AWeaponParent> DefaultWeaponClass;
+
 	//对于装备武器的一些功能重写
 protected:
 	void ChangeEquippedWeapon();
@@ -256,6 +260,11 @@ public:
 	//丢枪时，枪内的子弹数
 	UPROPERTY(VisibleAnywhere)
 		int32 SavedAmmo;
+
+	//生成默认武器
+	void SpawnDefaultWeapon();
+	//装备默认武器后更新对应的UI
+	void UpdateHUDAmmo();
 
 	//获取武器
 	FORCEINLINE AWeaponParent* GetEquippedWeapon() const { return EquippedWeapon; }

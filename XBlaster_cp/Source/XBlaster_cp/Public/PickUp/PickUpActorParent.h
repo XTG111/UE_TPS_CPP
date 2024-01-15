@@ -59,6 +59,9 @@ private:
 	UPROPERTY(EditAnywhere)
 		class UNiagaraSystem* PickupEffect;
 
-public:
+	//延迟绑定重叠时间，这样我们就可以站在生成点上，也可以生成Pickup，
+	FTimerHandle BindOverlapTimer;
+	float BindOverlapTime = 0.25f;
+	void BindOverlapTimerFinished();
 
 };

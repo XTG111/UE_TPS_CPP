@@ -2632,7 +2632,7 @@ void APickUpActorHealth::OnShpereOverlap(UPrimitiveComponent* OverlappedComponen
 1. 对于血量
 想法是接受Buff后，按时间均匀回血，所以可以先计算增长速率，和总增长量
 ```c++
-//propertycomp
+//propertycomp 控制是否可以回血，供pickup调用，计算回血速率
 void UXPropertyComponent::HealCharacter(float HealAmount, float HealingTime)
 {
 	bHealing = true;
@@ -2714,3 +2714,113 @@ void UXPropertyComponent::MulticasatJumpBuff_Implementation(float JumpZHight)
 		XCharacter->GetCharacterMovement()->JumpZVelocity = JumpZHight;
 	}
 }
+```
+
+# 重生BUff的pickup
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_OneParam(FActorDestroyedSignature, AActor, OnDestroyed, AActor*, DestroyedActor );
+在Spawn类中，对OnDestroyed函数绑定委托，这样当OnDestroyed函数被执行时会调用该委托，我们这个委托就是开启一个定时器，延时一个随机事件，然后随机生成一个PickUp类。
+那么如何生成呢，我们可以构建一个数组，用来存放我们要生成的类，然后通过随机选择下标，选择要生成的类。这个类生成之后绑定委托。
+```c++
+void APickUpSpawnPointParent::SpawnPickUp()
+{
+	int32 NumPickUpClasses = PickUpClass.Num();
+	if (NumPickUpClasses > 0)
+	{
+		//随机选择一个类生成
+		int32 Selection = FMath::RandRange(0, NumPickUpClasses - 1);
+		SpawnedPickUp = GetWorld()->SpawnActor<APickUpActorParent>(PickUpClass[Selection], GetActorTransform());
+		//绑定Destroyed委托
+		if (HasAuthority() && SpawnedPickUp)
+		{
+			SpawnedPickUp->OnDestroyed.AddDynamic(this, &APickUpSpawnPointParent::StartSpawnPickUpTimer);
+		}
+	}
+}
+```
+具体的定时器延迟如下
+```c++
+void APickUpSpawnPointParent::StartSpawnPickUpTimer(AActor* DestroyedActor)
+{
+	const float SpawnTime = FMath::FRandRange(SpawnTimeMin, SpawnTimeMax);
+	GetWorldTimerManager().SetTimer(
+		SpawnPickUpTimer, 
+		this, 
+		&APickUpSpawnPointParent::SpawnPickUpTimerFinished, 
+		SpawnTime
+	);
+}
+
+void APickUpSpawnPointParent::SpawnPickUpTimerFinished()
+{
+	if (HasAuthority())
+	{
+		SpawnPickUp();
+	}
+	GetWorldTimerManager().ClearTimer(SpawnPickUpTimer);
+}
+```
+
+## 站在重生PickUP点上导致无法有效生成
+原因：在第二次生成中，由于我们一直与sphere重合，所以PickupClass一出来就会被销毁，而绑定的延时生成的回调可能还没有被构造出来，这就导致了无法生成
+解决方法：在Pickup类中，我们是通过Sphere重叠事件绑定了OnDestroyed函数，一旦我们重叠就会调用OnDestroyed函数，从而在Spawn类中调用定时器重新生成。那么我们可以通过延时绑定的方式，使得当PickUp生成出来不会立即执行重叠事件，这就给了Spawn类中的定时器绑定构造时间。
+```c++
+//PickUp类中利用定时器Delay
+void APickUpActorParent::BeginPlay()
+{
+	Super::BeginPlay();
+	if (HasAuthority())
+	{
+		GetWorldTimerManager().SetTimer(BindOverlapTimer, this, &APickUpActorParent::BindOverlapTimerFinished, BindOverlapTime);
+	}
+}
+
+//绑定事件在0.25s后才会生效，所以这段时间ACTOR可以生成，且不会被销毁
+void APickUpActorParent::BindOverlapTimerFinished()
+{
+	//Bind Overlap
+	OverlapShpere->OnComponentBeginOverlap.AddDynamic(this, &APickUpActorParent::OnShpereOverlap);
+}
+```
+
+# Overlap产生的方式
+通过上述方法，我们可以发现当物体再次生成时，并过来0.25s后并不能直接消失，而是需要我们角色移动之后并再次产生重叠事件，才会响应。这是因为在配置文件中，默认的UpdateOverlap是OnlyUpdateMovable
+```c++
+	switch (UpdateMethod)
+	{
+		case EActorUpdateOverlapsMethod::OnlyUpdateMovable:
+			bUpdateOverlaps = IsRootComponentMovable();
+			break;
+			
+		case EActorUpdateOverlapsMethod::NeverUpdate:
+			bUpdateOverlaps = false;
+			break;
+
+		case EActorUpdateOverlapsMethod::AlwaysUpdate:
+		default:
+			bUpdateOverlaps = true;
+			break;
+	}
+	
+bool AActor::IsRootComponentMovable() const
+{
+	return(RootComponent != nullptr && RootComponent->Mobility == EComponentMobility::Movable);
+}
+
+//actor touching state
+UENUM(BlueprintType)
+enum class EActorUpdateOverlapsMethod : uint8
+{
+	UseConfigDefault,	// Use the default value specified by the native class or config value.
+	AlwaysUpdate,		// Always update overlap state on initialization.
+	OnlyUpdateMovable,	// Only update if root component has Movable mobility.
+	NeverUpdate			// Never update overlap state on initialization.
+};
+```
+可以看到只有移动之后才会更新Overlaps然后响应
+
+# 生成默认武器
+为角色在生成时生成默认武器，利用GameMode可以限制生成的地图和仅在服务器上生成，因为只有服务器上的GameMode不为空。生成后就需要更新HUD，就和之前更新血条的操作一样，防止Overlay还没有被初始化导致的数据显示不正常。
+然后在BeginPlay下调用即可。
+
+## 销毁默认武器
+当角色死亡时自动销毁默认的武器，不是默认武器则自动掉落，通过在武器父类中添加一个bool值来区分是不是默认武器，当生成默认武器时将该bool值设为true，对于其他武器则不修改。当角色死亡时，判断这个值的真假，从而决定是调用detroy函数drop函数

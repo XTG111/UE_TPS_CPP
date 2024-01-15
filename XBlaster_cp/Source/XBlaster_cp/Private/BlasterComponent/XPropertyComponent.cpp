@@ -40,6 +40,7 @@ void UXPropertyComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 	// ...
 	HealRampUp(DeltaTime);
+	ShieldRampUp(DeltaTime);
 }
 
 void UXPropertyComponent::ReceivedDamage(float Damage, AController* InstigatorController)
@@ -96,7 +97,7 @@ void UXPropertyComponent::OnRep_HealthChange(float LastHealth)
 void UXPropertyComponent::OnRep_SheildChange(float LastShield)
 {
 	XCharacter->UpdateHUDShield();
-	if (Health < LastShield)
+	if (Shield < LastShield)
 	{
 		XCharacter->PlayHitReactMontage();
 	}
@@ -107,6 +108,13 @@ void UXPropertyComponent::HealCharacter(float HealAmount, float HealingTime)
 	bHealing = true;
 	AmountToHeal += HealAmount;
 	Healingrate = HealAmount / HealingTime;
+}
+
+void UXPropertyComponent::ShieldReplenish(float ShieldAmount, float ShealingTime)
+{
+	bShield = true;
+	Shieldgrate = ShieldAmount / ShealingTime;
+	AmountToShield += ShieldAmount;
 }
 
 void UXPropertyComponent::SpeedBuff(float BuffBaseSpeed, float BuffCrouchSpeed, float BuffTime)
@@ -201,6 +209,25 @@ void UXPropertyComponent::HealRampUp(float DeltaTime)
 	{
 		bHealing = false;
 		AmountToHeal = 0.f;
+	}
+}
+
+void UXPropertyComponent::ShieldRampUp(float DeltaTime)
+{
+	if (!bShield || XCharacter == nullptr || XCharacter->IsElimmed()) return;
+
+	const float ShieldthisFrame = Shieldgrate * DeltaTime;
+	//Ôö¼ÓÑªÁ¿
+	Shield = FMath::Clamp(Shield + ShieldthisFrame, 0.f, MAXShield);
+	if (XCharacter->HasAuthority())
+	{
+		XCharacter->UpdateHUDShield();
+	}
+	AmountToShield -= ShieldthisFrame;
+	if (AmountToShield <= 0.f || Shield >= MAXShield)
+	{
+		bShield = false;
+		AmountToShield = 0.f;
 	}
 }
 

@@ -44,12 +44,10 @@ APickUpActorParent::APickUpActorParent()
 void APickUpActorParent::BeginPlay()
 {
 	Super::BeginPlay();
-
 	if (HasAuthority())
 	{
-		//Bind Overlap
-		OverlapShpere->OnComponentBeginOverlap.AddDynamic(this, &APickUpActorParent::OnShpereOverlap);
-	}	
+		GetWorldTimerManager().SetTimer(BindOverlapTimer, this, &APickUpActorParent::BindOverlapTimerFinished, BindOverlapTime);
+	}
 }
 
 // Called every frame
@@ -89,5 +87,13 @@ void APickUpActorParent::Destroyed()
 
 void APickUpActorParent::OnShpereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+}
+
+//绑定事件在0.25s后才会生效，所以这段时间ACTOR可以生成，且不会被销毁
+void APickUpActorParent::BindOverlapTimerFinished()
+{
+	//Bind Overlap
+	OverlapShpere->OnComponentBeginOverlap.AddDynamic(this, &APickUpActorParent::OnShpereOverlap);
+	GetWorldTimerManager().ClearTimer(BindOverlapTimer);
 }
 

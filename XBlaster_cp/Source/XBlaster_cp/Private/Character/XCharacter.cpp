@@ -738,7 +738,15 @@ void AXCharacter::Elim()
 {
 	if (CombatComp && CombatComp->EquippedWeapon)
 	{
-		CombatComp->EquippedWeapon->Drop();
+		//处理默认武器的消失
+		if(CombatComp->EquippedWeapon->bDestroyWeapon)
+		{
+			CombatComp->EquippedWeapon->Destroy();
+		}
+		else
+		{
+			CombatComp->EquippedWeapon->Drop();
+		}
 	}
 	MulticastElim();
 	GetWorldTimerManager().SetTimer(ElimTimer, this, &AXCharacter::ElimTimerFinished, ElimDelay);

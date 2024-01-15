@@ -15,6 +15,7 @@
 #include "Sound/SoundCue.h"
 #include "Character/XCharacterAnimInstance.h"
 #include "Weapon/ProjectileActor.h"
+#include "GameMode/XBlasterGameMode.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -65,7 +66,8 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 void UCombatComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
+	SpawnDefaultWeapon();
+	UpdateHUDAmmo();
 	// ...
 	if (CharacterEx)
 	{
@@ -882,6 +884,33 @@ void UCombatComponent::PickupAmmo(EWeaponType WeaponType, int32 AmmoAmount)
 		ReloadWeaponAutomatic();
 	}
 
+}
+
+//只在特定GameMode下生成
+void UCombatComponent::SpawnDefaultWeapon()
+{
+	AXBlasterGameMode* XBlasterGameMode = Cast<AXBlasterGameMode>(UGameplayStatics::GetGameMode(this));
+	UWorld* World = GetWorld();
+	//GameMode只会在Server上返回具体值，客户端上为Null
+	if (XBlasterGameMode && World && !CharacterEx->IsElimmed() && DefaultWeaponClass)
+	{
+		AWeaponParent* StartingWeapon = World->SpawnActor<AWeaponParent>(DefaultWeaponClass);
+		StartingWeapon->bDestroyWeapon = true;
+		if (StartingWeapon)
+		{
+			EquipWeapon(StartingWeapon);
+		}
+	}
+}
+
+void UCombatComponent::UpdateHUDAmmo()
+{
+	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+	if (XBlasterPlayerController && EquippedWeapon)
+	{
+		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
+		XBlasterPlayerController->SetHUDWeaponAmmo(EquippedWeapon->Ammo);
+	}
 }
 
 
