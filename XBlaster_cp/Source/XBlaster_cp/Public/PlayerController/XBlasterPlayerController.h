@@ -88,6 +88,13 @@ protected:
 	//CoolDown
 	void HandleCoolDown();
 
+	//播放UI动画HighPing
+	void HighPingWarning();
+	void StopHighPingWarning();
+
+	//tick控制highping的播放
+	void PlayHighPingAnim(float DeltaTime);
+
 private:
 
 	//利用玩家控制器来设置HUD
@@ -137,4 +144,19 @@ private:
 	float HUDMaxShield;
 	float HUDWeaponAmmo;
 	float HUDCarriedAmmo;
+
+	/*ping时间*/
+	//上次显示时间
+	float HighPingRunningTime = 0.f;
+	//动画播放总时长
+	UPROPERTY(EditAnywhere)
+		float HighPingDuration = 5.f;
+	//动画播放的时间
+	float PingAnimationRunningTime = 0.f;
+	//检测ping的间隔,以及pingwarning冷却时间
+	UPROPERTY(EditAnywhere)
+		float CheckPingFrequency = 20.f;
+	//ping的阈值
+	UPROPERTY(EditAnywhere)
+		float HighPingThreshold = 50.f;
 };

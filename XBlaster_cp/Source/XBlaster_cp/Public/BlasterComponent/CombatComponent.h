@@ -61,8 +61,13 @@ protected:
 		void ServerSetAiming(bool bIsAiming);
 
 	//客户端上持枪的时候改变控制旋转方式
+	//控制主武器
 	UFUNCTION()
 		void OnRep_EquippedWeapon();
+
+	//控制副武器
+	UFUNCTION()
+		void OnRep_SecondWeapon();
 
 	//判断能否攻击
 		void ControlFire(bool bPressed);
@@ -130,6 +135,10 @@ private:
 	//EquippedWeapon用来判断是否装备武器，从而切换动画，需要赋值给客户端
 	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon,VisibleAnywhere)
 		class AWeaponParent* EquippedWeapon;
+
+	//副武器
+	UPROPERTY(ReplicatedUsing = OnRep_SecondWeapon, VisibleAnywhere)
+		AWeaponParent* SecondWeapon;
 
 	//瞄准状态
 	UPROPERTY(Replicated, VisibleAnywhere)
@@ -228,16 +237,23 @@ protected:
 	void ChangeEquippedWeapon();
 	void AttachActorToRightHand(AActor* ActorToAttach);
 	void AttachActorToLeftHand(AActor* ActorToAttach);
+	void AttachActorToBackPackage(AActor* ActorToAttach);
 	void UpdateCarriedAmmo();
-	void PlayEquipWeaponSound();
+	void PlayEquipWeaponSound(AWeaponParent* WeaponToEquip);
 	void ReloadWeaponAutomatic();
 	//丢弃枪械
 	void DropEquippedWeapon();
 	//投掷时显示手雷
 	void ShowAttachedGrenade(bool bShowGrenade);
+	//交换武器
+	void SwapWeapon();
 
 public:	
-	void EquipWeapon(class AWeaponParent* WeaponToEquip);
+	void EquipWeapon(AWeaponParent* WeaponToEquip);
+	//装备主武器
+	void EquipPrimaryWeapon(AWeaponParent* WeaponToEquip);
+	//装备副武器
+	void EquipSecondWeapon(AWeaponParent* WeaponToEquip);
 	void NewEquipWeapon();
 	//是否还有足够的子弹
 	bool HaveAmmoCanFire();
@@ -270,4 +286,7 @@ public:
 	FORCEINLINE AWeaponParent* GetEquippedWeapon() const { return EquippedWeapon; }
 	FORCEINLINE bool GetbAiming() const { return bUnderAiming; }
 	FORCEINLINE int32 GetGrenades() const { return GrenadeAmount; }
+	//能否交换武器
+	bool CouldSwapWeapon();
+
 };

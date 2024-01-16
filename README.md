@@ -2824,3 +2824,61 @@ enum class EActorUpdateOverlapsMethod : uint8
 
 ## 销毁默认武器
 当角色死亡时自动销毁默认的武器，不是默认武器则自动掉落，通过在武器父类中添加一个bool值来区分是不是默认武器，当生成默认武器时将该bool值设为true，对于其他武器则不修改。当角色死亡时，判断这个值的真假，从而决定是调用detroy函数drop函数
+
+# 副武器的装备
+新增武器状态，其余操作与主武器类似，只是切换了武器插槽。
+切换武器，需要改变两个武器的状态
+
+# 延迟
+Ping: Packet Internet or Inter-NetWork Groper
+描述服务器响应客户端的请求需要多长时间 rtt
+
+## 滞后补偿
+服务器是权威的，角色的位置在服务器上是准确的，在本地客户端输入移动响应，只是通知服务器产生移动，然后将移动数据发送到每个客户端。
+本地客户端允许先预测你的移动，然后将移动传给服务器，服务器现在就会移动你在服务器上的权威角色，然后传递给其他客户端。
+当服务器向回传递你的准确位置时，本地客户端的角色必须重置到权威位置，会导致抖动。
+
+## 插值法
+通过对运动终点(运动的准确位置)和运动起点之间的插值，客户端会自己预测其他actor在本地客户端的位置，但每当服务器更新时，位置会发生改变导致角色移动更平滑，但其实并不是角色的准确位置
+
+## 外推法
+知道actor的移动方向，假设持续沿着那个方向奔跑，然后预测出下一次服务器更新的位置
+
+## CharacterMovement
+组合使用了这些方法，如果ping过高就会使用外推法在其他客户端预测你的位置，进行更正时会使用插值法进行平滑过渡，如果相差位置过大，则会弹回正确位置。
+
+# Server-side Rewind
+服务器上会存储所有actor的运动信息，然后当你的击打传递到服务器，服务器会进行回退，来评价是否击中
+客户端射击得分->通知服务器->服务倒退检查
+高ping客户端一般不采用。
+
+# 提示延迟过高
+在PIE模式下模拟延迟过高，修改DefaultEngine.ini
+```
+[PacketSimulationSettings]
+PktLag = 100
+```
+代码中播放UI动画，在widget代码中同样要先绑定相同名字的变量
+```c++
+//characteroverlayWdg.h
+	//绑定UI的动画和控件
+	UPROPERTY(meta = (BindWidget))
+		class UImage* WifiWARNING;
+	//Transient:没有序列化到磁盘
+	UPROPERTY(meta = (BindWidgetAnim), Transient)
+		UWidgetAnimation* HighPingAnim;
+```
+之后就是在PlayerController里面播放这个动画，通过PlayAnimation(Anim)和StopAnimation(Anim)实现动画的播放和停止,还可以使用IsAnimationPlaying(Anim)检测是否正在播放。
+项目还做了一个显示一段时间后停止显示，等待冷却时间过后继续显示的功能。就是利用DeltaTime记录冷却时长和播放时长然后和阈值作比较即可。
+最重要的是如何获得本地客户端的Ping值，我们可以利用之前的RTT来模拟ping，而UE为我们提供了一个获取Ping的函数，利用PlayerState的GetPing()，这个获得的值是实际ping值的1/4所以乘以4与我们的阈值比较即可。
+```c++
+if (PlayerState)
+		{
+			//实际Ping 的 1/4
+			if (PlayerState->GetPing() * 4 > HighPingThreshold)
+			{
+				PingAnimationRunningTime = 0.f;
+				HighPingWarning();
+			}
+		}
+```

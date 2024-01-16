@@ -217,6 +217,7 @@ void AXCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	PlayerInputComponent->BindAction("ReloadWeapon", IE_Pressed, this, &AXCharacter::ReloadWeapon);
 	PlayerInputComponent->BindAction("ThrowGrenade", IE_Pressed, this, &AXCharacter::Grenade);
 	PlayerInputComponent->BindAction("DropWeapon", IE_Pressed, this, &AXCharacter::DropWeapon);
+	PlayerInputComponent->BindAction("SwapWeapon", IE_Pressed, this, &AXCharacter::SwapWeapon);
 }
 
 void AXCharacter::MoveForward(float value)
@@ -330,6 +331,22 @@ void AXCharacter::DropWeapon()
 	}
 }
 
+void AXCharacter::SwapWeapon()
+{
+	if (CombatComp && CombatComp->CouldSwapWeapon())
+	{
+		ServerSwapWeapon();
+	}
+}
+
+void AXCharacter::ServerSwapWeapon_Implementation()
+{
+	if (CombatComp && CombatComp->CouldSwapWeapon())
+	{
+		CombatComp->SwapWeapon();
+	}
+}
+
 
 //装备武器
 //只需要在服务器上验证，如果在服务器上的Actor
@@ -337,9 +354,7 @@ void AXCharacter::EquipWeapon()
 {
 	if (CombatComp)
 	{
-
 		ServerEquipWeapon();
-
 	}
 }
 
@@ -388,6 +403,20 @@ void AXCharacter::SetOverlappingWeapon(AWeaponParent* Weapon)
 		{
 			OverlappingWeapon->ShowPickUpWidget(true);
 		}
+	}
+}
+
+void AXCharacter::DroporDestroyWeapon(AWeaponParent* Weapon)
+{
+	if (Weapon == nullptr) return;
+	//处理默认武器的消失
+	if (Weapon->bDestroyWeapon)
+	{
+		Weapon->Destroy();
+	}
+	else
+	{
+		Weapon->Drop();
 	}
 }
 
@@ -682,7 +711,6 @@ AXBlasterPlayerController* AXCharacter::GetXBlasterPlayerCtr()
 	return XBlasterPlayerController;
 }
 
-
 void AXCharacter::HideCameraIfCharacterClose()
 {
 	if (!IsLocallyControlled()) return;
@@ -736,17 +764,10 @@ void AXCharacter::ReceivedDamage(AActor* DamageActor, float Damage, const UDamag
 //处理在服务器上的变化
 void AXCharacter::Elim()
 {
-	if (CombatComp && CombatComp->EquippedWeapon)
+	if (CombatComp)
 	{
-		//处理默认武器的消失
-		if(CombatComp->EquippedWeapon->bDestroyWeapon)
-		{
-			CombatComp->EquippedWeapon->Destroy();
-		}
-		else
-		{
-			CombatComp->EquippedWeapon->Drop();
-		}
+		DroporDestroyWeapon(CombatComp->EquippedWeapon);
+		DroporDestroyWeapon(CombatComp->SecondWeapon);
 	}
 	MulticastElim();
 	GetWorldTimerManager().SetTimer(ElimTimer, this, &AXCharacter::ElimTimerFinished, ElimDelay);

@@ -85,96 +85,19 @@ void AWeaponParent::BeginPlay()
 void AWeaponParent::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 //通过复制，客户端调用
 void AWeaponParent::OnRep_WeponState()
 {
-	switch (WeaponState)
-	{
-	case EWeaponState::EWS_Initial:
-		break;
-	case EWeaponState::EWS_Equipped:
-		ShowPickUpWidget(false);
-		WeaponMesh->SetSimulatePhysics(false);
-		WeaponMesh->SetEnableGravity(false);
-		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		//如果装备的使SMG将开启模拟物理
-		if (WeaponType == EWeaponType::EWT_SubMachineGun)
-		{
-			WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-			WeaponMesh->SetEnableGravity(true);
-			WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
-		}
-		EnableCustomDepth(false);
-		break;
-	case EWeaponState::EWS_Dropped:
-		WeaponMesh->SetSimulatePhysics(true);
-		WeaponMesh->SetEnableGravity(true);
-		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		//设置阻挡方便检测
-		WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
-		//对角色设置忽略，使得角色不会被其阻挡
-		WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
-		WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
-		WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_BLUE);
-		WeaponMesh->MarkRenderStateDirty();
-		EnableCustomDepth(true);
-		break;
-	case EWeaponState::EWS_MAX:
-		break;
-	default:
-		break;
-	}
+	OnWeaponStateSet();
 }
 
 //服务器调用
 void AWeaponParent::SetWeaponState(EWeaponState State)
 {
 	WeaponState = State;
-	switch (WeaponState)
-	{
-	case EWeaponState::EWS_Initial:
-		break;
-	case EWeaponState::EWS_Equipped:
-		//当装备上时应当关闭UI和球体碰撞
-		ShowPickUpWidget(false);
-		//禁用球体碰撞
-		SphereComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		WeaponMesh->SetSimulatePhysics(false);
-		WeaponMesh->SetEnableGravity(false);
-		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		//如果装备的使SMG将开启模拟物理
-		if (WeaponType == EWeaponType::EWT_SubMachineGun)
-		{
-			WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-			WeaponMesh->SetEnableGravity(true);
-			WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
-		}
-		EnableCustomDepth(false);
-		break;
-	case EWeaponState::EWS_Dropped:
-		if (HasAuthority())
-		{
-			SphereComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-		}
-		WeaponMesh->SetSimulatePhysics(true);
-		WeaponMesh->SetEnableGravity(true);
-		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		//重置回默认状态
-		WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
-		WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
-		WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
-		WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_BLUE);
-		WeaponMesh->MarkRenderStateDirty();
-		EnableCustomDepth(true);
-		break;
-	case EWeaponState::EWS_MAX:
-		break;
-	default:
-		break;
-	}
+	OnWeaponStateSet();
 }
 
 void AWeaponParent::ShowPickUpWidget(bool bShowWidget)
@@ -254,7 +177,12 @@ void AWeaponParent::OnRep_Owner()
 	}
 	else
 	{
-		SetHUDAmmo();
+		XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+		//只有是主武器是才更新UI
+		if (XCharacter && XCharacter->GetEquippedWeapon() && XCharacter->GetEquippedWeapon() == this)
+		{
+			SetHUDAmmo();
+		}
 	}
 }
 
@@ -318,5 +246,85 @@ void AWeaponParent::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent,
 	{
 		XCharacter->SetOverlappingWeapon(nullptr);
 	}
+}
+
+void AWeaponParent::OnWeaponStateSet()
+{
+	switch (WeaponState)
+	{
+	case EWeaponState::EWS_Initial:
+		break;
+	case EWeaponState::EWS_Equipped:
+		HandleOnEquipped();
+		break;
+	case EWeaponState::EWS_Dropped:
+		HandleOnDropped();
+		break;
+	case EWeaponState::EWS_Second:
+		HandleOnSecond();
+		break;
+	case EWeaponState::EWS_MAX:
+		break;
+	default:
+		break;
+	}
+}
+
+void AWeaponParent::HandleOnEquipped()
+{
+	//当装备上时应当关闭UI和球体碰撞
+	ShowPickUpWidget(false);
+	//禁用球体碰撞
+	SphereComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WeaponMesh->SetSimulatePhysics(false);
+	WeaponMesh->SetEnableGravity(false);
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	//如果装备的使SMG将开启模拟物理
+	if (WeaponType == EWeaponType::EWT_SubMachineGun)
+	{
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		WeaponMesh->SetEnableGravity(true);
+		WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+	}
+	EnableCustomDepth(false);
+}
+
+void AWeaponParent::HandleOnDropped()
+{
+	if (HasAuthority())
+	{
+		SphereComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	}
+	WeaponMesh->SetSimulatePhysics(true);
+	WeaponMesh->SetEnableGravity(true);
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	//重置回默认状态
+	WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
+	WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
+	WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+	WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_BLUE);
+	WeaponMesh->MarkRenderStateDirty();
+	EnableCustomDepth(true);
+}
+
+void AWeaponParent::HandleOnSecond()
+{
+	//当装备上时应当关闭UI和球体碰撞
+	ShowPickUpWidget(false);
+	//禁用球体碰撞
+	SphereComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WeaponMesh->SetSimulatePhysics(false);
+	WeaponMesh->SetEnableGravity(false);
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	//如果装备的使SMG将开启模拟物理
+	if (WeaponType == EWeaponType::EWT_SubMachineGun)
+	{
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		WeaponMesh->SetEnableGravity(true);
+		WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+	}
+	EnableCustomDepth(true);
+	WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_TAN);
+	WeaponMesh->MarkRenderStateDirty();
 }
 

@@ -92,6 +92,7 @@ protected:
 	void ReloadWeapon();
 	void Grenade();
 	void DropWeapon();
+	void SwapWeapon();
 	UPROPERTY(BlueprintReadOnly, Category = MoveFunc)
 		float ForwardValue;
 	UPROPERTY(BlueprintReadOnly, Category = MoveFunc)
@@ -142,6 +143,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = Combat)
 		UAnimMontage* GrenadeMontage;
 
+	void DroporDestroyWeapon(AWeaponParent* Weapon);
 
 private:
 	UPROPERTY(VisibleAnywhere, Category= Camera)
@@ -172,6 +174,8 @@ private:
 	//RPC客户端调用，服务器执行，约定在函数名前加上Server
 	UFUNCTION(Server,Reliable)
 		void ServerEquipWeapon();
+	UFUNCTION(Server, Reliable)
+		void ServerSwapWeapon();
 
 	//隐藏角色
 	void HideCameraIfCharacterClose();

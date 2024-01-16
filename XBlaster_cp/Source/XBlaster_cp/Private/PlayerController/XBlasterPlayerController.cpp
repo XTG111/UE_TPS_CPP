@@ -16,6 +16,7 @@
 #include "Weapon/WeaponParent.h"
 #include "GameState/XBlasterGameState.h"
 #include "XPlayerState/XBlasterPlayerState.h"
+#include "Components/Image.h"
 
 void AXBlasterPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -108,6 +109,9 @@ void AXBlasterPlayerController::Tick(float DeltaTime)
 	//在游戏过程中每隔一段时间同步服务器时间到客户端
 	CheckTimeSync(DeltaTime);
 	PollInit();
+
+	//更新Ping的冷却时间计数
+	PlayHighPingAnim(DeltaTime);
 }
 
 void AXBlasterPlayerController::CheckTimeSync(float DeltaTime)
@@ -481,6 +485,77 @@ void AXBlasterPlayerController::HandleCoolDown()
 		if (XCharacter->GetCombatComp())
 		{
 			XCharacter->GetCombatComp()->IsFired(false);
+		}
+	}
+}
+
+void AXBlasterPlayerController::HighPingWarning()
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->WifiWARNING &&
+		XBlasterHUD->CharacterOverlayWdg->HighPingAnim;
+	if (bHUDvalid)
+	{
+		XBlasterHUD->CharacterOverlayWdg->WifiWARNING->SetOpacity(1.f);
+		XBlasterHUD->CharacterOverlayWdg->PlayAnimation(
+			XBlasterHUD->CharacterOverlayWdg->HighPingAnim,
+			0.f,
+			5
+		);
+	}
+}
+
+void AXBlasterPlayerController::StopHighPingWarning()
+{
+	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+
+	bool bHUDvalid = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->WifiWARNING &&
+		XBlasterHUD->CharacterOverlayWdg->HighPingAnim;
+	if (bHUDvalid)
+	{
+		XBlasterHUD->CharacterOverlayWdg->WifiWARNING->SetOpacity(1.f);
+		if (XBlasterHUD->CharacterOverlayWdg->IsAnimationPlaying(XBlasterHUD->CharacterOverlayWdg->HighPingAnim))
+		{
+			XBlasterHUD->CharacterOverlayWdg->StopAnimation(XBlasterHUD->CharacterOverlayWdg->HighPingAnim);
+		}
+	}
+}
+
+void AXBlasterPlayerController::PlayHighPingAnim(float DeltaTime)
+{
+	HighPingRunningTime += DeltaTime;
+	if (HighPingRunningTime > CheckPingFrequency)
+	{
+		//如果冷却时间过了，那么又可以继续显示pingwarning
+
+		//首先需要获得ping的大小 -- 可以利用我们计算的RoundTripTime/2来获得 或者 PlayerState->GetPing()
+		PlayerState = PlayerState == nullptr ? GetPlayerState<APlayerState>() : PlayerState;
+		if (PlayerState)
+		{
+			//实际Ping 的 1/4
+			if (PlayerState->GetPing() * 4 > HighPingThreshold)
+			{
+				PingAnimationRunningTime = 0.f;
+				HighPingWarning();
+			}
+		}
+		HighPingRunningTime = 0.f;
+	}
+	bool bHighPingAnimPlay = XBlasterHUD &&
+		XBlasterHUD->CharacterOverlayWdg &&
+		XBlasterHUD->CharacterOverlayWdg->HighPingAnim &&
+		XBlasterHUD->CharacterOverlayWdg->IsAnimationPlaying(XBlasterHUD->CharacterOverlayWdg->HighPingAnim);
+	if (bHighPingAnimPlay)
+	{
+		PingAnimationRunningTime += DeltaTime;
+		if (PingAnimationRunningTime > HighPingDuration)
+		{
+			StopHighPingWarning();
 		}
 	}
 }

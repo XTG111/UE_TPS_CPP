@@ -53,6 +53,7 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
+	DOREPLIFETIME(UCombatComponent, SecondWeapon);
 	DOREPLIFETIME(UCombatComponent, bUnderAiming);
 	//只对Owner客户端复制
 	DOREPLIFETIME_CONDITION(UCombatComponent, CarriedAmmo,COND_OwnerOnly);
@@ -66,8 +67,6 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 void UCombatComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	SpawnDefaultWeapon();
-	UpdateHUDAmmo();
 	// ...
 	if (CharacterEx)
 	{
@@ -84,6 +83,8 @@ void UCombatComponent::BeginPlay()
 	{
 		InitializeCarriedAmmo();
 	}
+	SpawnDefaultWeapon();
+	UpdateHUDAmmo();
 }
 
 void UCombatComponent::SetAiming(bool bIsAiming)
@@ -195,6 +196,17 @@ void UCombatComponent::AttachActorToLeftHand(AActor* ActorToAttach)
 	}
 }
 
+void UCombatComponent::AttachActorToBackPackage(AActor* ActorToAttach)
+{
+	if (CharacterEx == nullptr || CharacterEx->GetMesh() == nullptr || ActorToAttach == nullptr) return;
+	const USkeletalMeshSocket* HandSocket = CharacterEx->GetMesh()->GetSocketByName(FName("BackpackSocket"));
+	//附加
+	if (HandSocket)
+	{
+		HandSocket->AttachActor(ActorToAttach, CharacterEx->GetMesh());
+	}
+}
+
 //备弹数的UI
 void UCombatComponent::UpdateCarriedAmmo()
 {
@@ -213,12 +225,12 @@ void UCombatComponent::UpdateCarriedAmmo()
 }
 
 //播放装备武器的音效
-void UCombatComponent::PlayEquipWeaponSound()
+void UCombatComponent::PlayEquipWeaponSound(AWeaponParent* WeaponToEquip)
 {
 	//播放装备武器时的音效
-	if (CharacterEx && EquippedWeapon && EquippedWeapon->EquipSound)
+	if (CharacterEx && WeaponToEquip && WeaponToEquip->EquipSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, EquippedWeapon->EquipSound, CharacterEx->GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, WeaponToEquip->EquipSound, CharacterEx->GetActorLocation());
 	}
 }
 
@@ -239,6 +251,26 @@ void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
 	}
 	//如果此时不是空闲状态那么不进行装备武器
 	if (CombatState != ECombatState::ECS_Unoccupied) return;
+
+	//装备第二把武器
+	if (EquippedWeapon != nullptr && SecondWeapon == nullptr)
+	{
+		EquipSecondWeapon(WeaponToEquip);
+	}
+	else
+	{
+		//装备第一把武器
+		EquipPrimaryWeapon(WeaponToEquip);
+	}
+	
+	//拾取武器后切换控制
+	CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
+	CharacterEx->bUseControllerRotationYaw = true;
+}
+
+void UCombatComponent::EquipPrimaryWeapon(AWeaponParent* WeaponToEquip)
+{
+	if (WeaponToEquip == nullptr) return;
 	//丢弃已有的武器
 	ChangeEquippedWeapon();
 	//使用骨骼插槽设置武器位置
@@ -253,12 +285,24 @@ void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
 	//更新备弹数及UI
 	UpdateCarriedAmmo();
 	//装备音效
-	PlayEquipWeaponSound();
+	PlayEquipWeaponSound(WeaponToEquip);
 	//自动换弹
 	ReloadWeaponAutomatic();
-	//拾取武器后切换控制
-	CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
-	CharacterEx->bUseControllerRotationYaw = true;
+}
+
+void UCombatComponent::EquipSecondWeapon(AWeaponParent* WeaponToEquip)
+{
+	if (WeaponToEquip == nullptr) return;
+	//使用骨骼插槽设置武器位置
+	SecondWeapon = WeaponToEquip;
+	SecondWeapon->SetWeaponState(EWeaponState::EWS_Second);
+	//附加到右手
+	AttachActorToBackPackage(WeaponToEquip);
+	//SetOwner中的形参Owner这个函数，UE已经默认了进行属性复制
+	//UPROPERTY(ReplicatedUsing = OnRep_Owner)
+	SecondWeapon->SetOwner(CharacterEx);
+	//装备音效
+	PlayEquipWeaponSound(WeaponToEquip);
 }
 
 void UCombatComponent::NewEquipWeapon()
@@ -294,17 +338,17 @@ void UCombatComponent::NewEquipWeapon()
 
 void UCombatComponent::OnRep_EquippedWeapon()
 {
-	if (EquippedWeapon && CharacterEx)
+	if (EquippedWeapon && CharacterEx && CharacterEx->IsLocallyControlled())
 	{
 		//武器状态的设置和附加到手上的操作不能判断先后的，所以在客户端上也进行修改保证正确性
 		//拾取武器后切换控制
 		EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
 		AttachActorToRightHand(EquippedWeapon);
 		//播放装备武器时的音效
-		PlayEquipWeaponSound();
+		PlayEquipWeaponSound(EquippedWeapon);
 		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
 		CharacterEx->bUseControllerRotationYaw = true;
-		
+		EquippedWeapon->SetHUDAmmo();
 	}
 	if (CharacterEx && CharacterEx->IsLocallyControlled())
 	{
@@ -320,6 +364,19 @@ void UCombatComponent::OnRep_EquippedWeapon()
 			CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = true;
 			CharacterEx->bUseControllerRotationYaw = false;
 		}
+	}
+}
+
+void UCombatComponent::OnRep_SecondWeapon()
+{
+	if (SecondWeapon && CharacterEx)
+	{
+		//武器状态的设置和附加到手上的操作不能判断先后的，所以在客户端上也进行修改保证正确性
+		//拾取武器后切换控制
+		SecondWeapon->SetWeaponState(EWeaponState::EWS_Second);
+		AttachActorToBackPackage(SecondWeapon);
+		//播放装备武器时的音效
+		PlayEquipWeaponSound(SecondWeapon);
 	}
 }
 
@@ -798,6 +855,25 @@ void UCombatComponent::ShowAttachedGrenade(bool bShowGrenade)
 	}
 }
 
+//交换武器
+void UCombatComponent::SwapWeapon()
+{
+	AWeaponParent* TempWeapon = EquippedWeapon;
+	EquippedWeapon = SecondWeapon;
+	SecondWeapon = TempWeapon;
+
+	//附加
+	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
+	AttachActorToRightHand(EquippedWeapon);
+	//Ammo是没有OnRep的所以我们通过EquippedWeapon来传递HUD的更新
+	EquippedWeapon->SetHUDAmmo();
+	//备用弹量是可复制的，所以利用其可以更新客户端的HUD
+	UpdateCarriedAmmo();
+	PlayEquipWeaponSound(EquippedWeapon);
+
+	SecondWeapon->SetWeaponState(EWeaponState::EWS_Second);
+	AttachActorToBackPackage(SecondWeapon);
+}
 
 //插值设置视角
 void UCombatComponent::InterpFOV(float Deltatime)
@@ -911,6 +987,11 @@ void UCombatComponent::UpdateHUDAmmo()
 		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
 		XBlasterPlayerController->SetHUDWeaponAmmo(EquippedWeapon->Ammo);
 	}
+}
+
+bool UCombatComponent::CouldSwapWeapon()
+{
+	return (EquippedWeapon && SecondWeapon);
 }
 
 

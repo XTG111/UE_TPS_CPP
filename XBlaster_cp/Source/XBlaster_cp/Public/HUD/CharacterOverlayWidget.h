@@ -35,4 +35,11 @@ public:
 		UTextBlock* GameTimeText;
 	UPROPERTY(meta = (BindWidget))
 		UTextBlock* GrenadeAmount;
+	
+	//绑定UI的动画和控件
+	UPROPERTY(meta = (BindWidget))
+		class UImage* WifiWARNING;
+	//Transient:没有序列化到磁盘
+	UPROPERTY(meta = (BindWidgetAnim), Transient)
+		UWidgetAnimation* HighPingAnim;
 };

@@ -17,6 +17,7 @@ enum class EWeaponState :uint8
 	EWS_Initial UMETA(DisplayName = "Initial State"),
 	EWS_Equipped UMETA(DisplayName = "Equipped"),
 	EWS_Dropped UMETA(DisplayName = "Dropped"),
+	EWS_Second UMETA(DisplayName = "Second"),
 
 	//记录当前的枚举数量
 	EWS_MAX UMETA(DisplayName = "DefaultMax")
@@ -171,4 +172,11 @@ protected:
 		virtual void OnSphereEndOverlap(
 			UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex
 		);
+
+	/*武器状态*/
+	//决定每个武器状态有什么功能
+	virtual void OnWeaponStateSet();
+	virtual void HandleOnEquipped();
+	virtual void HandleOnDropped();
+	virtual void HandleOnSecond();
 };
