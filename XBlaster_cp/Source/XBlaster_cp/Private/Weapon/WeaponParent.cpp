@@ -69,16 +69,12 @@ void AWeaponParent::BeginPlay()
 	PickUpWidgetComp->SetVisibility(false);
 	//当目前机器是服务器时启用球体碰撞，并且绑定重叠事件利用LocleRole
 	//if (GetLocalRole() == ENetRole::ROLE_Authority)
-	if(HasAuthority())
-	{
-		//当角色与碰撞球体重叠时产生事件，后续可以换成利用接口射线检测
-		SphereComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
-		SphereComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		//在服务器上处理重叠事件
-		SphereComp->OnComponentBeginOverlap.AddDynamic(this, &AWeaponParent::OnSphereBeginOverlap);
-		SphereComp->OnComponentEndOverlap.AddDynamic(this, &AWeaponParent::OnSphereEndOverlap);
-	}
-	
+	//当角色与碰撞球体重叠时产生事件，后续可以换成利用接口射线检测
+	SphereComp->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+	SphereComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	//在服务器上处理重叠事件
+	SphereComp->OnComponentBeginOverlap.AddDynamic(this, &AWeaponParent::OnSphereBeginOverlap);
+	SphereComp->OnComponentEndOverlap.AddDynamic(this, &AWeaponParent::OnSphereEndOverlap);
 }
 
 // Called every frame
@@ -131,8 +127,11 @@ void AWeaponParent::Fire(const FVector& HitTarget)
 			}
 		}
 	}
-	//开枪调用
-	SpendRound();
+	//开枪调用更新子弹只在服务器上进行
+	if (HasAuthority()) 
+	{
+		SpendRound();
+	}
 }
 
 void AWeaponParent::SetHUDAmmo()
@@ -228,6 +227,34 @@ void AWeaponParent::FPickObject_Implementation(APawn* InstigatorPawn)
 	{
 		XCharacter->GetCombatComp()->EquipWeapon(this);
 	}
+}
+
+FVector AWeaponParent::TraceEndWithScatter(const FVector& HitTarget)
+{
+
+	//获取枪口位置
+	const USkeletalMeshSocket* MuzzleFlashSocket = WeaponMesh->GetSocketByName("MuzzleFlash");
+	//由于我们要在本地计算散布所以直接传入路径的开始位置
+	if (MuzzleFlashSocket == nullptr) return FVector();
+	const FTransform SockertTransform = MuzzleFlashSocket->GetSocketTransform(WeaponMesh);
+	//从枪口出发
+	const FVector TraceStart = SockertTransform.GetLocation();
+	//从起点指向目标的方向向量
+	const FVector ToTargetNormalize = (HitTarget - TraceStart).GetSafeNormal();
+
+	//散布圆心位置
+	const FVector SphereCenter = TraceStart + ToTargetNormalize * DistanceToSphere;
+	//DrawDebugSphere(GetWorld(), SphereCenter, SphereRadius, 12, FColor::Red, true);
+
+	//随机生成球内1点
+	const FVector RandVec = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
+	const FVector EndLoc = SphereCenter + RandVec;
+
+	FVector ToEndLoc = EndLoc - TraceStart;
+	//DrawDebugSphere(GetWorld(), EndLoc, 4.f, 12, FColor::Orange, true);
+
+	//DrawDebugLine(GetWorld(), TraceStart, FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size()), FColor::Cyan, true);
+	return FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size());
 }
 
 void AWeaponParent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)

@@ -70,7 +70,17 @@ protected:
 		void OnRep_SecondWeapon();
 
 	//判断能否攻击
-		void ControlFire(bool bPressed);
+	void ControlFire(bool bPressed);
+	//对不同开火状态的武器编写各自的开火函数
+	void FireProjectileWeapon(bool bPressed);
+	void FireHitScanWeapon(bool bPressed);
+	void FireShotGunWeapon(bool bPressed);
+
+	//RPC传递霰弹枪的命中目标到服务器
+	UFUNCTION(Server, Reliable)
+		void ServerShotGunFire(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets);
+	UFUNCTION(NetMulticast, Reliable)
+		void MulticastShotGunFire(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets);
 
 	//RPC传递射击状态，传递是否开枪，和客户端准星位置Call from Client Do in the server
 	UFUNCTION(Server, Reliable)
@@ -78,6 +88,11 @@ protected:
 	//Multicast RPC Call from Server
 	UFUNCTION(NetMulticast, Reliable)
 		void MulticastFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
+
+	//本地播放开火的动画，降低延迟影响
+	void LocalFire(const FVector_NetQuantize& TraceHitTarget);
+	//霰弹枪的本地开火控制，用于统计命中点
+	void LocalShotGunFire(const TArray<FVector_NetQuantize>& TraceHitTargets);
 
 	////RPC传递换弹动画
 	UFUNCTION(Server, Reliable)

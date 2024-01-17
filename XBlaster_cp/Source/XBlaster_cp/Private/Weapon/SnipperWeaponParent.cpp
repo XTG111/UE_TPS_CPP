@@ -77,7 +77,7 @@ void ASnipperWeaponParent::SnipperTraceHit(const FVector& TraceStart, const FVec
 {
 	UWorld* World = GetWorld();
 	//是否开启散布，开启了，就调用上面那个随机计算结果的函数，不开启就是终点就是准星位置
-	FVector End =  !bAiming ? TraceEndWithScatter(TraceStart, HitTarget) : TraceStart + (HitTarget - TraceStart) * 1.25f;
+	FVector End =  !bAiming ? TraceEndWithScatter(HitTarget) : TraceStart + (HitTarget - TraceStart) * 1.25f;
 	if (World)
 	{
 		World->LineTraceSingleByChannel(

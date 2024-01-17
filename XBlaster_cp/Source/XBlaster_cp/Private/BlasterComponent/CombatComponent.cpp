@@ -16,6 +16,7 @@
 #include "Character/XCharacterAnimInstance.h"
 #include "Weapon/ProjectileActor.h"
 #include "GameMode/XBlasterGameMode.h"
+#include "Weapon/ShotGunWeaponParent.h"
 
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
@@ -424,6 +425,7 @@ void UCombatComponent::OnRep_CarriedAmmo()
 //Client use
 void UCombatComponent::ReloadWeapon()
 {
+	CharacterEx->GetWorldTimerManager().ClearTimer(FireTime);
 	if (EquippedWeapon)
 	{
 		bool AmmoRemain = EquippedWeapon->Ammo < EquippedWeapon->MaxAmmo;
@@ -546,6 +548,7 @@ void UCombatComponent::JumpToShotGunEnd()
 
 void UCombatComponent::HandleReload()
 {
+	bFired = false;
 	CharacterEx->PlayReloadMontage();
 }
 
@@ -556,11 +559,23 @@ void UCombatComponent::ControlFire(bool bPressed)
 		bCanFire = false;
 		if (bPressed)
 		{
-			//播放蒙太奇动画以及伤害判定
-			ServerFire(bPressed, HitTarget);
 			if (EquippedWeapon)
 			{
 				CrosshairShootingFactor = 0.75f;
+				switch (EquippedWeapon->FireType)
+				{
+				case EFireType::EFT_Projectile:
+					FireProjectileWeapon(bPressed);
+					break;
+				case EFireType::EFT_HitScan:
+					FireHitScanWeapon(bPressed);
+					break;
+				case EFireType::EFT_ShotGun:
+					FireShotGunWeapon(bPressed);
+					break;
+				default:
+					break;
+				}
 			}
 		}
 		//发射子弹
@@ -573,6 +588,67 @@ void UCombatComponent::ControlFire(bool bPressed)
 			UGameplayStatics::PlaySoundAtLocation(this, EquippedWeapon->DryFireSound, CharacterEx->GetActorLocation());
 		}
 	}
+}
+
+void UCombatComponent::FireProjectileWeapon(bool bPressed)
+{
+	if (EquippedWeapon&& CharacterEx)
+	{
+		HitTarget = EquippedWeapon->bUseScatter ? EquippedWeapon->TraceEndWithScatter(HitTarget) : HitTarget;
+		//本地为了降低延迟的作用
+		if (!CharacterEx->HasAuthority())
+		{
+			LocalFire(HitTarget);
+		}
+		//播放蒙太奇动画以及伤害判定
+		ServerFire(bPressed, HitTarget);
+	}
+}
+
+void UCombatComponent::FireHitScanWeapon(bool bPressed)
+{
+	//将客户端的散布传递给服务器
+	if (EquippedWeapon&& CharacterEx)
+	{
+		HitTarget = EquippedWeapon->bUseScatter ? EquippedWeapon->TraceEndWithScatter(HitTarget) : HitTarget;
+		//本地为了降低延迟的作用
+		if (!CharacterEx->HasAuthority())
+		{
+			LocalFire(HitTarget);
+		}
+
+		//播放蒙太奇动画以及伤害判定
+		ServerFire(bPressed, HitTarget);
+	}
+}
+
+void UCombatComponent::FireShotGunWeapon(bool bPressed)
+{
+	AShotGunWeaponParent* ShotGun = Cast<AShotGunWeaponParent>(EquippedWeapon);
+	TArray<FVector_NetQuantize> HitTargets;
+	if (ShotGun && CharacterEx)
+	{
+		ShotGun->ShotGunTraceEndwithScatter(HitTarget, HitTargets);
+		//只在本地调用，服务器不调用避免多次发射
+		if (!CharacterEx->HasAuthority())
+		{
+			LocalShotGunFire(HitTargets);
+		}
+		ServerShotGunFire(bPressed, HitTargets);
+	}
+}
+
+void UCombatComponent::ServerShotGunFire_Implementation(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets)
+{
+	MulticastShotGunFire(bPressed, TraceHitTargets);
+}
+
+void UCombatComponent::MulticastShotGunFire_Implementation(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets)
+{
+	//广播到其他客户端
+	if (CharacterEx && CharacterEx->IsLocallyControlled() && !CharacterEx->HasAuthority()) return;
+	bFired = bPressed;
+	LocalShotGunFire(TraceHitTargets);
 }
 
 bool UCombatComponent::HaveAmmoCanFire()
@@ -606,26 +682,15 @@ void UCombatComponent::ServerFire_Implementation(bool bPressed, const FVector_Ne
 
 void UCombatComponent::MulticastFire_Implementation(bool bPressed, const FVector_NetQuantize& TraceHitTarget)
 {
+	if (CharacterEx && CharacterEx->IsLocallyControlled() && !CharacterEx->HasAuthority()) return;
 	bFired = bPressed;
+	LocalFire(TraceHitTarget);
+}
+
+void UCombatComponent::LocalFire(const FVector_NetQuantize& TraceHitTarget)
+{
 	if (EquippedWeapon == nullptr) return;
 	//UE_LOG(LogTemp, Warning, TEXT("AO_YAW:%d"), bFired);
-	// 
-	// 对于霰弹枪
-	if (CharacterEx && CombatState == ECombatState::ECS_Reloading && EquippedWeapon->WeaponType == EWeaponType::EWT_ShotGun)
-	{
-		CharacterEx->PlayFireMontage(bUnderAiming);
-		if (bFired)
-		{
-			EquippedWeapon->Fire(TraceHitTarget);
-		}
-		else
-		{
-			EquippedWeapon->WeaponMesh->Stop();
-		}
-		CombatState = ECombatState::ECS_Unoccupied;
-		return;
-	}
-
 	//开火粒子特效的播放
 	if (CharacterEx && CombatState == ECombatState::ECS_Unoccupied)
 	{
@@ -640,6 +705,26 @@ void UCombatComponent::MulticastFire_Implementation(bool bPressed, const FVector
 		}
 	}
 }
+
+void UCombatComponent::LocalShotGunFire(const TArray<FVector_NetQuantize>& TraceHitTargets)
+{
+	AShotGunWeaponParent* ShotGun = Cast<AShotGunWeaponParent>(EquippedWeapon);
+	if (EquippedWeapon == nullptr || CharacterEx == nullptr) return;
+	if (CombatState == ECombatState::ECS_Reloading || CombatState == ECombatState::ECS_Unoccupied)
+	{
+		CharacterEx->PlayFireMontage(bUnderAiming);
+		if (bFired)
+		{
+			ShotGun->FireShotGun(TraceHitTargets);
+		}
+		else
+		{
+			ShotGun->WeaponMesh->Stop();
+		}
+		CombatState = ECombatState::ECS_Unoccupied;
+	}
+}
+
 
 void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
 {
@@ -858,6 +943,7 @@ void UCombatComponent::ShowAttachedGrenade(bool bShowGrenade)
 //交换武器
 void UCombatComponent::SwapWeapon()
 {
+	if (CombatState != ECombatState::ECS_Unoccupied) return;
 	AWeaponParent* TempWeapon = EquippedWeapon;
 	EquippedWeapon = SecondWeapon;
 	SecondWeapon = TempWeapon;

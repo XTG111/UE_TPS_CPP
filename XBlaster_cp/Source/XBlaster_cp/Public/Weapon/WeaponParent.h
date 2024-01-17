@@ -23,6 +23,17 @@ enum class EWeaponState :uint8
 	EWS_MAX UMETA(DisplayName = "DefaultMax")
 };
 
+//区分不同武器，随机弹道还是粒子，用于规范命中点
+UENUM(BlueprintType)
+enum class EFireType : uint8
+{
+	EFT_HitScan UMETA(DisplayName = "Hit Scan Weapon"),
+	EFT_Projectile UMETA(DisplayName = "Projectile Weapon"),
+	EFT_ShotGun UMETA(DispalyName = "Shot Gun Weapon"),
+
+	EFT_MAX UMETA(DisplayName = "DefaultMax")
+};
+
 
 UCLASS()
 class XBLASTER_CP_API AWeaponParent : public AActor, public IFObjectInterface
@@ -160,6 +171,25 @@ public:
 	//其余保持false
 	//在actor死亡时会销毁默认武器
 	bool bDestroyWeapon = false;
+
+	//规定每个武器的种类，用于决定是否向服务器传递命中点
+	UPROPERTY(EditAnywhere)
+		EFireType FireType;
+
+	//计算得到散布的一点
+	FVector TraceEndWithScatter(const FVector& HitTarget);
+	/*
+	Trace End with scatter
+	*/
+	//散布距离
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+		float DistanceToSphere = 800.f;
+	//散布球体半径
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+		float SphereRadius = 75.f;
+	//是否开启散布
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+		bool bUseScatter = false;
 
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点

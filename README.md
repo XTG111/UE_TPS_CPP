@@ -2882,3 +2882,107 @@ if (PlayerState)
 			}
 		}
 ```
+
+# 降低延迟影响
+对于动画的播放，可以通过，将多播RPC中的函数copy到本地Fire函数中，然后在多播RPC中只为其他客户端传递
+对于本地UI的变化，主要原因在于我们对于重叠事件的判断放在了服务器上，导致拾取UI提示的滞后性，所以我们将这个判断放在本地客户端即可，当两个角色同时去拾取一把武器时，是服务器去执行拾取操作然后广播到客户端的。
+
+# 随机散落点武器在客户端和服务器上的打击点统一
+主要出现在那些有随机弹道的武器上，我们需要做的就是将本地客户端的命中点传递给服务器，让服务器接受这个点来计算是否命中。
+通过在本地客户端计算命中点，然后利用ServerRPC将命中点传递进去。
+```c++
+void UCombatComponent::FireHitScanWeapon(bool bPressed)
+{
+	//将客户端的散布传递给服务器
+	if (EquippedWeapon)
+	{
+		HitTarget = EquippedWeapon->bUseScatter ? EquippedWeapon->TraceEndWithScatter(HitTarget) : HitTarget;
+		//本地为了降低延迟的作用
+		LocalFire(HitTarget);
+		//播放蒙太奇动画以及伤害判定
+		ServerFire(bPressed, HitTarget);
+	}
+}
+```
+# 霰弹枪多目标点的客户端与服务器统一
+首先利用数组存储所有的命中点，然后利用RPC来传递这个数组到服务器上。
+原理都是一样的，就是现在本地客户端获得所有命中点，然后传递给server，server再利用多播rpc传递给其他客户端。
+1. 首先是需要将命中点存为一个数组，我们需要新写一个存储命中结果的函数
+```c++
+//shotgun.cpp
+void AShotGunWeaponParent::ShotGunTraceEndwithScatter(const FVector& HitTarget, TArray<FVector_NetQuantize>& HitTargets)
+{
+	//获取枪口位置
+	const USkeletalMeshSocket* MuzzleFlashSocket = WeaponMesh->GetSocketByName("MuzzleFlash");
+	//由于我们要在本地计算散布所以直接传入路径的开始位置
+	if (MuzzleFlashSocket == nullptr) return ;
+	const FTransform SockertTransform = MuzzleFlashSocket->GetSocketTransform(WeaponMesh);
+	//从枪口出发
+	const FVector TraceStart = SockertTransform.GetLocation();
+	//从起点指向目标的方向向量
+	const FVector ToTargetNormalize = (HitTarget - TraceStart).GetSafeNormal();
+	//散布圆心位置
+	const FVector SphereCenter = TraceStart + ToTargetNormalize * DistanceToSphere;
+	//DrawDebugSphere(GetWorld(), SphereCenter, SphereRadius, 12, FColor::Red, true);
+
+	for (uint32 i = 0; i < NumberOfPellets; i++)
+	{
+		//随机生成球内1点
+		const FVector RandVec = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
+		const FVector EndLoc = SphereCenter + RandVec;
+		FVector ToEndLoc = EndLoc - TraceStart;
+		//DrawDebugSphere(GetWorld(), EndLoc, 4.f, 12, FColor::Orange, true);
+		//DrawDebugLine(GetWorld(), TraceStart, FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size()), FColor::Cyan, true);
+		HitTargets.Add(FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size()));
+	}
+}
+```
+2. 其次为了能在本地计算得到命中结果的伤害需要将之前的开火函数进行修改，将之前的HasAuthority去掉。
+```c++
+			WeaponTraceHit(Start, HitTarget, FireHit);
+			//伤害计算,只在本地进行，服务器和本地都会统计
+			XCharacter = Cast<AXCharacter>(FireHit.GetActor());
+			if (XCharacter)
+			{
+				//如果击中那么Hits数增加
+				if (HitMap.Contains(XCharacter))
+				{
+					HitMap[XCharacter]++;
+				}
+				else
+				{
+					HitMap.Emplace(XCharacter, 1);
+				}
+			}
+```
+同时之前是计算的每个命中点，而我们已经获得了命中点的数组，所以直接利用这个数组进行遍历即可。
+3. 在战斗组件中为霰弹枪单独增加RPC传播函数以及本地开枪函数，是由于我们修改了霰弹枪的开枪函数，与其他枪械混在一起将调用错误。
+```c++
+//combatcomp.cpp
+void UCombatComponent::LocalShotGunFire(const TArray<FVector_NetQuantize>& TraceHitTargets)
+{
+	AShotGunWeaponParent* ShotGun = Cast<AShotGunWeaponParent>(EquippedWeapon);
+	if (EquippedWeapon == nullptr || CharacterEx == nullptr) return;
+	if (CombatState == ECombatState::ECS_Reloading || CombatState == ECombatState::ECS_Unoccupied)
+	{
+		CharacterEx->PlayFireMontage(bUnderAiming);
+		if (bFired)
+		{
+			ShotGun->FireShotGun(TraceHitTargets);
+		}
+		else
+		{
+			ShotGun->WeaponMesh->Stop();
+		}
+		CombatState = ECombatState::ECS_Unoccupied;
+	}
+}
+```
+
+**注意**我们要确保本地的调用只会在本地进行，即不会被服务器调用，所以在本地开枪的函数前还应该加上判断
+```c++
+		if (!CharacterEx->HasAuthority())
+		{
+			LocalFire(HitTarget);
+		}
+```

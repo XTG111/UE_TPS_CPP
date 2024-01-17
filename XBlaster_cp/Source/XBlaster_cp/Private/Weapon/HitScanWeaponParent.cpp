@@ -8,7 +8,7 @@
 #include "Particles/ParticleSystemComponent.h"
 #include "Sound/SoundCue.h"
 #include "DrawDebugHelpers.h"
-#include "Kismet/KismetMathLibrary.h"
+
 
 //在战斗组件中会利用多播RPC调用Fire
 void AHitScanWeaponParent::Fire(const FVector& HitTarget)
@@ -89,32 +89,15 @@ void AHitScanWeaponParent::SetSubMachineGunProper(UWorld* World, FTransform& Soc
 	}
 }
 
-FVector AHitScanWeaponParent::TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget)
-{
-	//从起点指向目标的方向向量
-	FVector ToTargetNormalize = (HitTarget - TraceStart).GetSafeNormal();
-	
-	//散布圆心位置
-	FVector SphereCenter = TraceStart + ToTargetNormalize * DistanceToSphere;
-	//DrawDebugSphere(GetWorld(), SphereCenter, SphereRadius, 12, FColor::Red, true);
-
-	//随机生成球内1点
-	FVector RandVec = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
-	FVector EndLoc = SphereCenter + RandVec;
-	
-	FVector ToEndLoc = EndLoc - TraceStart;
-	//DrawDebugSphere(GetWorld(), EndLoc, 4.f, 12, FColor::Orange, true);
-	
-	//DrawDebugLine(GetWorld(), TraceStart, FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size()), FColor::Cyan, true);
-	return FVector(TraceStart + ToEndLoc * 80000.f/ToEndLoc.Size());
-}
-
 //整合计算射线检测目标的功能
 void AHitScanWeaponParent::WeaponTraceHit(const FVector& TraceStart, const FVector& HitTarget, FHitResult& OutHit)
 {
 	UWorld* World = GetWorld();
 	//是否开启散布，开启了，就调用上面那个随机计算结果的函数，不开启就是终点就是准星位置
-	FVector End = bUseScatter ? TraceEndWithScatter(TraceStart, HitTarget) : TraceStart + (HitTarget - TraceStart) * 1.25f;
+	//FVector End = bUseScatter ? TraceEndWithScatter(TraceStart, HitTarget) : TraceStart + (HitTarget - TraceStart) * 1.25f;
+	
+	//我们将在本地计算散布所以不需要在服务器中判断是否开启了
+	FVector End = TraceStart + (HitTarget - TraceStart) * 1.25f;
 	if (World)
 	{
 		World->LineTraceSingleByChannel(
@@ -128,6 +111,8 @@ void AHitScanWeaponParent::WeaponTraceHit(const FVector& TraceStart, const FVect
 		{
 			BeamEnd = OutHit.ImpactPoint;
 		}
+
+		DrawDebugSphere(GetWorld(), BeamEnd, 16.f, 12, FColor::Orange, true);
 		if (BeamParticles)
 		{
 			UParticleSystemComponent* BeamComp = UGameplayStatics::SpawnEmitterAtLocation(
