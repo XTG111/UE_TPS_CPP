@@ -136,7 +136,7 @@ protected:
 private:
 	//角色实例
 	UPROPERTY(VisibleAnywhere)
-		class AXCharacter* CharacterEx;
+		AXCharacter* CharacterEx;
 
 	//声明一个控制器，用控制来调用HUDPlayer::Controller -->APlayerController::GetHUD()
 	UPROPERTY()
@@ -156,8 +156,13 @@ private:
 		AWeaponParent* SecondWeapon;
 
 	//瞄准状态
-	UPROPERTY(Replicated, VisibleAnywhere)
+	UPROPERTY(ReplicatedUsing = OnRep_UnderAming, VisibleAnywhere)
 		bool bUnderAiming;
+	//用于本地判断我们现在是否在瞄准
+	bool bLocalAiming = false;
+
+	UFUNCTION()
+		void OnRep_UnderAming();
 
 	UPROPERTY(VisibleAnywhere)
 		float BaseWalkSpeed;
@@ -303,5 +308,8 @@ public:
 	FORCEINLINE int32 GetGrenades() const { return GrenadeAmount; }
 	//能否交换武器
 	bool CouldSwapWeapon();
+	//本地控制是否开启FBRIK，因为我们在本地提前播放了换弹动画
+	UPROPERTY(VisibleAnywhere)
+		bool bLocallyReloading = false;
 
 };

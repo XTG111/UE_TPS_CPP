@@ -2986,3 +2986,80 @@ void UCombatComponent::LocalShotGunFire(const TArray<FVector_NetQuantize>& Trace
 			LocalFire(HitTarget);
 		}
 ```
+
+# 延迟补偿--客户端预测
+由于本地客户端角色的移动将会利用serverRPC传递给服务器，服务器上是角色的权威控制，所以服务器上的角色在RTT/2的时间后会向前移动，然后再经过RTT/2将权威位置发送给客户端，如果客户端此时再RTT时间类产生了移动，那么就会不断地向服务器发送位置，然后服务器返回位置总过经过RTT，但本地客户端上的角色移动是先预测移动的，所以会看到客户端上的角色在经过RTT后不断地向后退然后又向前闪烁。
+## 更正技术 severeReconciliation 服务器协调
+客户端向服务器发送位置时会在RPC包上加上编号，并在本地客户端存储该RPC信息。当接受到服务器传回的RPC后，如果不是最新的那么我们就会将本地的这个对应的RPC包给丢掉，然后利用传回来的RPC信息和最新的本地传给服务器的RPC信息中的移动距离数值相减。从服务器传回来的权威位置再加上这个差值，得到我们实际应该在的位置从而显示在客户端上。
+当服务器返回的RPC和我们本地最新存储的数据一致时，就不需要处理了
+## 流程
+1. Client Move
+2. SendRPC(Client save it)
+3. Receives processed response from server
+4. Applies correction
+5. Discards old movement (already processed by server)
+6. Applies all unprocessed movement
+
+# 运用客户端预测在子弹变化中
+客户端预测就是将原有的服务器上计算余弹数的函数放在所有机器上进行，即不需要再去判断HasAuthority。
+服务器向客户端传递权威值使用ClientRPC
+对于只改变一次的操作比如换弹我们可以不记录RPC包，因为，然后换弹这个动作在发给服务器后，并不会继续换弹从而导致子弹数的改变。相当于角色在客户端上只移动了一次然后等待服务器的返回。
+但是对于开枪这个动作，将导致子弹数量快速的变化，为了保证UI的合理性，我们就需要记录客户端的发射次数(!HasAuthority())然后在ClientRPC中进行更新运算
+```c++
+void AWeaponParent::SpendRound()
+{
+	Ammo = FMath::Clamp(Ammo - 1, 0, MaxAmmo);
+	SetHUDAmmo();
+	//服务器上调用CLientRPC向客户端传递权威值
+	if (HasAuthority())
+	{
+		ClientUpdateAmmo(Ammo);
+	}
+	//当是客户端是记录发送记录的次数
+	else
+	{
+		Sequence++;
+	}
+}
+
+void AWeaponParent::ClientUpdateAmmo_Implementation(int32 ServerAmmo)
+{
+	if (HasAuthority()) return;
+	//将服务器的权威值赋值给客户端
+	Ammo = ServerAmmo;
+	//已经处理了一个发送请求
+	Sequence--;
+	//校正，由于子弹是消耗的，客户端预测的子弹肯定比服务器传回来的少 相差sequence
+	Ammo -= Sequence;
+	SetHUDAmmo();
+}
+```
+# 运用客户端预测在瞄准中
+首先每次进行瞄准时，本地会和服务器同步更新当前状态
+当服务器上的值改变时，会调用OnRep，这时候将瞄准状态设置为本地存储的，避免响应延迟。
+```c++
+if (CharacterEx->IsLocallyControlled())
+{
+	bLocalAiming = bUnderAiming;
+}
+
+void UCombatComponent::OnRep_UnderAming()
+{
+	if (CharacterEx && CharacterEx->IsLocallyControlled())
+	{
+		bUnderAiming = bLocalAiming;
+	}
+}
+```
+# 运用客户端预测在换弹的蒙太奇中
+同样是在本地直接播放换弹的蒙太奇，并且在serverRpc和OnRep中对对当前角色不是LocallyControl的机器进行播放蒙太奇，避免重复。
+其次是我们禁用了IK在换弹动画中，所以需要我们在本地保存一个变量，用这个变量来直接控制动画中IK的启用和关闭。
+
+# 服务器倒带 Server-side rewind
+[示例图片](https://img1.imgtp.com/2024/01/18/dSYoToEd.png)
+当另一个客户端移动时，其数据会先传给服务器，再由服务器传给你，中间最快会间隔一个RTT，这会导致你的客户端上对方的角色位置实际上是他在1个RTT之前的位置，当对方出现在我们的准星里是，开枪射击，我们的命中结果会传递给服务器做判断，也就是说还需要继续过RTT/2的时间，服务器会检测这个目标是否在我们命中的位置，但其实由于对方一直在移动，所以经过RTT/2后对方在我们机器上的位置也被更新了，所以会检测失败。
+[示例图片](https://img1.imgtp.com/2024/01/18/DZvUnBd0.png)
+服务器倒带方法：我们开枪后向服务器传输的不只是命中位置还有命中的时间节点，当服务器接受到这个信息后，会倒退到击中的时间点去计算当时目标位置再来判断是否击中。
+这样即使你的机器上目标的移动和你不同步，但你会根据你看到他的时间来决定你是否击中。
+
+**Low LAG OR High LAG -> for You or Target**

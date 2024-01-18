@@ -306,6 +306,7 @@ public:
 	FORCEINLINE UStaticMeshComponent* GetGrenadeComp() const { return AttachGrenade; }
 	FORCEINLINE bool GetbElimed() const { return bElimmed; }
 	FORCEINLINE UXPropertyComponent* GetPropertyComp() const { return PropertyComp; }
+	bool IsLocallyReloading();
 
 public:
 	//控制哪些操作将被禁用

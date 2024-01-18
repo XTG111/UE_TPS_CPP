@@ -133,10 +133,20 @@ public:
 	UPROPERTY(EditAnywhere)
 		int32 MaxAmmo = 30;
 	//当前子弹数
-	UPROPERTY(EditAnywhere,ReplicatedUsing = OnRep_Ammo)
+	UPROPERTY(EditAnywhere)
 		int32 Ammo = 30;
-	UFUNCTION()
-		void OnRep_Ammo();
+
+	UFUNCTION(Client,Reliable)
+		void ClientUpdateAmmo(int32 ServerAmmo);
+	UFUNCTION(Client, Reliable)
+		void ClientAddAmmo(int32 AmmoToAdd);
+
+	//the number of unprocessed server request for ammo
+	//Incremented in spendround decremented in clientupdateAmmo
+	// 这个就是那个序号 不需要单独存储子弹数
+	//相当于客户端记录发出了多少请求，即发射了多少次，然后次数*每次的子弹数即使最后的差值
+	int32 Sequence = 0;
+
 	void SpendRound();
 	void SetHUDAmmo();
 

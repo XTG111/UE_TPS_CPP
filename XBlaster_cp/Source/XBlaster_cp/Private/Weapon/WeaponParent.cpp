@@ -58,7 +58,6 @@ void AWeaponParent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AWeaponParent, WeaponState);
-	DOREPLIFETIME(AWeaponParent, Ammo);
 }
 
 
@@ -128,10 +127,12 @@ void AWeaponParent::Fire(const FVector& HitTarget)
 		}
 	}
 	//开枪调用更新子弹只在服务器上进行
-	if (HasAuthority()) 
-	{
-		SpendRound();
-	}
+	//if (HasAuthority()) 
+	//{
+	//	SpendRound();
+	//}
+	//客户端预测
+	SpendRound();
 }
 
 void AWeaponParent::SetHUDAmmo()
@@ -148,20 +149,55 @@ void AWeaponParent::SetHUDAmmo()
 
 }
 
-void AWeaponParent::OnRep_Ammo()
-{
-	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
-	//客户端调用停止霰弹枪的换弹动画
-	if (XCharacter && XCharacter->GetCombatComp() && IsFull())
-	{
-		XCharacter->GetCombatComp()->JumpToShotGunEnd();
-	}
-	SetHUDAmmo();
-}
 
 void AWeaponParent::SpendRound()
 {
 	Ammo = FMath::Clamp(Ammo - 1, 0, MaxAmmo);
+	SetHUDAmmo();
+	//服务器上调用CLientRPC向客户端传递权威值
+	if (HasAuthority())
+	{
+		ClientUpdateAmmo(Ammo);
+	}
+	//当是客户端是记录发送记录的次数
+	else
+	{
+		Sequence++;
+	}
+}
+
+void AWeaponParent::ClientUpdateAmmo_Implementation(int32 ServerAmmo)
+{
+	if (HasAuthority()) return;
+	//将服务器的权威值赋值给客户端
+	Ammo = ServerAmmo;
+	//已经处理了一个发送请求
+	Sequence--;
+	//校正，由于子弹是消耗的，客户端预测的子弹肯定比服务器传回来的少 相差sequence
+	Ammo -= Sequence;
+	SetHUDAmmo();
+}
+
+
+void AWeaponParent::AddAmmo(int32 AmmoToAdd)
+{
+	Ammo = FMath::Clamp(Ammo + AmmoToAdd, 0, MaxAmmo);
+	SetHUDAmmo();
+	if (HasAuthority())
+	{
+		ClientAddAmmo(AmmoToAdd);
+	}
+}
+
+void AWeaponParent::ClientAddAmmo_Implementation(int32 AmmoToAdd)
+{
+	if (HasAuthority()) return;
+	Ammo = FMath::Clamp(Ammo + AmmoToAdd, 0, MaxAmmo);
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+	if (XCharacter && XCharacter->GetCombatComp() && IsFull())
+	{
+		XCharacter->GetCombatComp()->JumpToShotGunEnd();
+	}
 	SetHUDAmmo();
 }
 
@@ -198,12 +234,6 @@ void AWeaponParent::Drop()
 	SetOwner(nullptr);
 	XCharacter = nullptr;
 	XBlasterPlayerController = nullptr;
-}
-
-void AWeaponParent::AddAmmo(int32 AmmoToAdd)
-{
-	Ammo = FMath::Clamp(Ammo - AmmoToAdd, 0, MaxAmmo);
-	SetHUDAmmo();
 }
 
 bool AWeaponParent::IsFull()

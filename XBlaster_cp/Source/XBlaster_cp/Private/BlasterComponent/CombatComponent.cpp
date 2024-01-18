@@ -103,6 +103,11 @@ void UCombatComponent::SetAiming(bool bIsAiming)
 	{
 		CharacterEx->ShowSnipperScope(bIsAiming);
 	}
+	if (CharacterEx->IsLocallyControlled())
+	{
+		bLocalAiming = bUnderAiming;
+	}
+	
 }
 
 void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
@@ -111,6 +116,14 @@ void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 	if (CharacterEx)
 	{
 		CharacterEx->GetCharacterMovement()->MaxWalkSpeed = bUnderAiming ? AimWalkSpeed : BaseWalkSpeed;
+	}
+}
+
+void UCombatComponent::OnRep_UnderAming()
+{
+	if (CharacterEx && CharacterEx->IsLocallyControlled())
+	{
+		bUnderAiming = bLocalAiming;
 	}
 }
 
@@ -429,9 +442,16 @@ void UCombatComponent::ReloadWeapon()
 	if (EquippedWeapon)
 	{
 		bool AmmoRemain = EquippedWeapon->Ammo < EquippedWeapon->MaxAmmo;
-		if (CarriedAmmo > 0 && AmmoRemain && CombatState == ECombatState::ECS_Unoccupied)
+		bool CouldReload = CarriedAmmo > 0 &&
+			EquippedWeapon &&
+			AmmoRemain &&
+			CombatState == ECombatState::ECS_Unoccupied &&
+			!bLocallyReloading;//用于本地控制是否在换弹
+		if (CouldReload)
 		{
 			ServerReload();
+			HandleReload();
+			bLocallyReloading = true;
 		}
 	}
 }
@@ -442,7 +462,11 @@ void UCombatComponent::ServerReload_Implementation()
 	if (CharacterEx == nullptr && EquippedWeapon == nullptr) return;
 	CharacterEx->GetWorldTimerManager().ClearTimer(FireTime);
 	CombatState = ECombatState::ECS_Reloading;
-	HandleReload();
+	//只有当服务器上角色不是被控制的角色才会执行，避免执行两次
+	if (!CharacterEx->IsLocallyControlled())
+	{
+		HandleReload();
+	}
 }
 
 //Client Use 通过RPC修改的CombatState播放动画
@@ -457,7 +481,11 @@ void UCombatComponent::OnRep_CombatState()
 		}
 		break;
 	case ECombatState::ECS_Reloading:
-		HandleReload();
+		//如果当前角色被控制是本地客户端，那么就不需要再次播放
+		if (CharacterEx && !CharacterEx->IsLocallyControlled())
+		{
+			HandleReload();
+		}
 		break;
 	case ECombatState::ECS_ThrowingGrenade: //OnRepNotify服务器到其他客户端
 		if (CharacterEx && !CharacterEx->IsLocallyControlled())
@@ -478,6 +506,7 @@ void UCombatComponent::OnRep_CombatState()
 void UCombatComponent::FinishingReloading()
 {
 	if (CharacterEx == nullptr) return;
+	bLocallyReloading = false;
 	if (CharacterEx->HasAuthority())
 	{
 		CombatState = ECombatState::ECS_Unoccupied;
@@ -504,7 +533,7 @@ void UCombatComponent::UpdateAmmoAndCarriedAmmo()
 		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
 	}
 
-	EquippedWeapon->AddAmmo(-ReloadAmount);
+	EquippedWeapon->AddAmmo(ReloadAmount);
 }
 
 //霰弹枪换弹调用，被动画通知调用
@@ -524,7 +553,7 @@ void UCombatComponent::ShotGunUpdateAmmoAndCarriedAmmo()
 		XBlasterPlayerController->SetHUDCarriedAmmo(CarriedAmmo);
 	}
 
-	EquippedWeapon->AddAmmo(-1);
+	EquippedWeapon->AddAmmo(1);
 
 	//当增加了一发子弹就可以开火了
 	bCanFire = true;
@@ -549,7 +578,11 @@ void UCombatComponent::JumpToShotGunEnd()
 void UCombatComponent::HandleReload()
 {
 	bFired = false;
-	CharacterEx->PlayReloadMontage();
+	if (CharacterEx)
+	{
+		CharacterEx->PlayReloadMontage();
+	}
+	
 }
 
 void UCombatComponent::ControlFire(bool bPressed)
@@ -657,7 +690,8 @@ bool UCombatComponent::HaveAmmoCanFire()
 	{
 		return false;
 	}
-
+	//本地直接根据是否在换弹判断能否开枪
+	if (bLocallyReloading) return false;
 	//对于霰弹枪的单独开枪判断
 	if (EquippedWeapon->Ammo > 0 && bCanFire && CombatState == ECombatState::ECS_Reloading && EquippedWeapon->WeaponType == EWeaponType::EWT_ShotGun)
 	{

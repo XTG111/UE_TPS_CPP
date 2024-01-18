@@ -897,3 +897,9 @@ ECombatState AXCharacter::GetCombateState() const
 	if (CombatComp == nullptr) return ECombatState::ECS_MAX;
 	return CombatComp->CombatState;
 }
+
+bool AXCharacter::IsLocallyReloading()
+{
+	if (CombatComp == nullptr) return false;
+	return CombatComp->bLocallyReloading;
+}
