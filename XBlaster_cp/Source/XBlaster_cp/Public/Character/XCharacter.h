@@ -168,8 +168,12 @@ private:
 		class UCombatComponent* CombatComp;
 
 	//人物属性组件
-	UPROPERTY(VisibleAnywhere, Category = CharactrerPp)
+	UPROPERTY(VisibleAnywhere, Category = CharacterPp)
 		class UXPropertyComponent* PropertyComp;
+
+	//Frame History Box组件
+	UPROPERTY(VisibleAnywhere, Category = CharacterLag)
+		class ULagCompensationComponent* LagCompensationComp;
 
 	//RPC客户端调用，服务器执行，约定在函数名前加上Server
 	UFUNCTION(Server,Reliable)
@@ -312,4 +316,47 @@ public:
 	//控制哪些操作将被禁用
 	UPROPERTY(Replicated)
 		bool bDisableGamePlay = false;
+
+	/*Mesh 包围盒BOX 用于充当服务器回退检测是否击中时的命中框*/
+	UPROPERTY(EditAnywhere)
+		class UBoxComponent* headbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* pelvisbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* spine_02box;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* spine_03box;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* upperarm_lbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* upperarm_rbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* lowerarm_lbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* lowerarm_rbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* hand_lbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* hand_rbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* backpackbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* blanketbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* thigh_lbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* thigh_rbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* calf_lbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* calf_rbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* foot_lbox;
+	UPROPERTY(EditAnywhere)
+		UBoxComponent* foot_rbox;
+
+	//存储上述Box
+	UPROPERTY()
+		TMap<FName, UBoxComponent*> HitBoxCompMap;
+
 };

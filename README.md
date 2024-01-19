@@ -3063,3 +3063,111 @@ void UCombatComponent::OnRep_UnderAming()
 这样即使你的机器上目标的移动和你不同步，但你会根据你看到他的时间来决定你是否击中。
 
 **Low LAG OR High LAG -> for You or Target**
+
+# 服务器倒带延迟补偿
+## 信息存储方式
+1. 利用ActorComponent存储所有角色的位置
+2. Frame History,由于角色的位置是变化的，那么我们至少需要在服务器上存储角色的位置
+3. 需要存储一个位置信息以及这个位置对应的时间
+4. 这个位置信息不单单是Location还有Mesh Size，因为角色的蹲和站立决定了是否击中。所以我们可以使用BOX包围盒来存储信息。
+5. 当然也可以选择使用一个胶囊体，但其无法精确的覆盖角色，所以利用BOX将角色分为几个BOX的组合，每个BOX存储当前时间点的自己的位置和旋转
+## 创建BOX包围盒
+NoCollision In Game，创建在角色类中，用于在服务器回退验证时检测是否击中。
+具体操作就是为一些控制骨骼添加BoxComponent，然后在UE中调整具体形状，使这些Box贴合骨骼。
+[骨骼Box包围盒](https://img1.imgtp.com/2024/01/19/yUDMxZow.png)
+## 存储Box包围盒
+利用结构体来存储信息，首先对于一个包围盒，我们需要存储它的位置，旋转和形状大小，然后对于FrameHistory要使用的struct需要存储时间点和当前时间点的包围盒信息，同样为了能匹配具体的包围盒我们使用map来存储这个PAIR
+```c++
+//一个BOX需要存储 信息
+USTRUCT(BlueprintType)
+struct FBoxInfomation
+{
+	GENERATED_BODY()
+
+		UPROPERTY()
+		FVector Location;
+	UPROPERTY()
+		FRotator Rotation;
+	//盒子范围
+	UPROPERTY()
+		FVector BoxExtent;
+};
+
+USTRUCT(BlueprintType)
+struct  FFramePackage
+{
+	GENERATED_BODY()
+
+		//需要存储所有BOX包围盒的信息
+	UPROPERTY()
+		float Time;
+
+	//使用Map 对每一个骨骼对应一个BOX方便查找
+	UPROPERTY()
+		TMap<FName, FBoxInfomation> HitBoxInfoMap;
+};
+```
+## 存储内容到FramePackage中
+在角色类中，利用Map存储BoxComponent和对应的名字，每构建一个Component就进行存储
+然后在LagComponent中，遍历这个Map，然后存储对应的信息到结构体中
+```c++
+void ULagCompensationComponent::SaveFramePackage(FFramePackage& Package)
+{
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+	if (XCharacter)
+	{
+		//因为只在服务器上所以直接获取当前世界时间
+		Package.Time = GetWorld()->GetTimeSeconds();
+		//存储每个Box的信息
+		for (auto& HitBoxPair : XCharacter->HitBoxCompMap)
+		{
+			FBoxInfomation BoxInformation;
+			BoxInformation.Location = HitBoxPair.Value->GetComponentLocation();
+			BoxInformation.Rotation = HitBoxPair.Value->GetComponentRotation();
+			BoxInformation.BoxExtent = HitBoxPair.Value->GetScaledBoxExtent();
+			//将信息存到FramePackage的Map中
+			Package.HitBoxInfoMap.Add(HitBoxPair.Key, BoxInformation);
+		}
+	}
+}
+```
+## Frame History
+FrameHistory **Saved** FramePackage
+FrameHistory采用双链表数据结构存储FramePackage，当添加一个新的FramePackage我们需要丢弃掉最老的FramePackage
+每帧存储修改FrameHistory
+```c++
+//LagComponent.h
+	//FrameHistory
+	TDoubleLinkedList<FFramePackage> FrameHistory;
+
+	//最长帧存储时间
+	UPROPERTY(EditAnywhere)
+	float MaxRecordTime = 4.f;
+//LagComponet.cpp
+void ULagCompensationComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// ...
+	if (FrameHistory.Num() <= 1)
+	{
+		FFramePackage ThisFrame;
+		SaveFramePackage(ThisFrame);
+		FrameHistory.AddHead(ThisFrame);
+	}
+	else
+	{
+		float HistoryLength = FrameHistory.GetHead()->GetValue().Time - FrameHistory.GetTail()->GetValue().Time;
+		while (HistoryLength > MaxRecordTime)
+		{
+			FrameHistory.RemoveNode(FrameHistory.GetTail());
+			HistoryLength = FrameHistory.GetHead()->GetValue().Time - FrameHistory.GetTail()->GetValue().Time;
+		}
+		FFramePackage ThisFrame;
+		SaveFramePackage(ThisFrame);
+		FrameHistory.AddHead(ThisFrame);
+
+		ShowFramePackage(ThisFrame, FColor::Red);
+	}
+}
+```
