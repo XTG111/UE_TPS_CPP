@@ -14,12 +14,29 @@ AProjectileGrenade::AProjectileGrenade()
 
 	ProjectileMovementComp = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovementComp"));
 	ProjectileMovementComp->bRotationFollowsVelocity = true;
-	ProjectileMovementComp->MaxSpeed = 1500.f;
-	ProjectileMovementComp->InitialSpeed = 1500.f;
+	ProjectileMovementComp->MaxSpeed = InitialSpeedForGrenade;
+	ProjectileMovementComp->InitialSpeed = InitialSpeedForGrenade;
 	ProjectileMovementComp->SetIsReplicated(true);
 	//粒子移动组件开启弹跳
 	ProjectileMovementComp->bShouldBounce = true;
 }
+
+#if WITH_EDITOR
+void AProjectileGrenade::PostEditChangeProperty(FPropertyChangedEvent& Event)
+{
+	Super::PostEditChangeProperty(Event);
+
+	FName PropertyName = Event.Property != nullptr ? Event.Property->GetFName() : NAME_None;
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(AProjectileGrenade, InitialSpeedForGrenade))
+	{
+		if (ProjectileMovementComp)
+		{
+			ProjectileMovementComp->MaxSpeed = InitialSpeedForGrenade;
+			ProjectileMovementComp->InitialSpeed = InitialSpeedForGrenade;
+		}
+	}
+}
+#endif
 
 void AProjectileGrenade::Destroyed()
 {

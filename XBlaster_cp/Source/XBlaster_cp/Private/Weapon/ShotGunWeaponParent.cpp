@@ -9,6 +9,8 @@
 #include "Particles/ParticleSystemComponent.h"
 #include "Sound/SoundCue.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "BlasterComponent/LagCompensationComponent.h"
+#include "PlayerController/XBlasterPlayerController.h"
 
 //void AShotGunWeaponParent::Fire(const FVector& HitTarget)
 //{
@@ -110,17 +112,17 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 			FHitResult FireHit;
 			WeaponTraceHit(Start, HitTarget, FireHit);
 			//伤害计算,只在本地进行，服务器和本地都会统计
-			XCharacter = Cast<AXCharacter>(FireHit.GetActor());
-			if (XCharacter)
+			AXCharacter* HitCharacter = Cast<AXCharacter>(FireHit.GetActor());
+			if (HitCharacter)
 			{
 				//如果击中那么Hits数增加
-				if (HitMap.Contains(XCharacter))
+				if (HitMap.Contains(HitCharacter))
 				{
-					HitMap[XCharacter]++;
+					HitMap[HitCharacter]++;
 				}
 				else
 				{
-					HitMap.Emplace(XCharacter, 1);
+					HitMap.Emplace(HitCharacter, 1);
 				}
 			}
 			//射线检测武器击中后产生粒子特效
@@ -145,16 +147,38 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 				);
 			}
 		}
+		TArray<AXCharacter*> HitCharacters;
 		for (auto HitPair : HitMap)
 		{
-			if (HitPair.Key && InstigatorController && HasAuthority())
+			if (HitPair.Key && InstigatorController )
 			{
-				UGameplayStatics::ApplyDamage(
-					HitPair.Key, //character that was hit
-					Damage * HitPair.Value,//multiply damage bu number of times
-					InstigatorController,
-					this,
-					UDamageType::StaticClass()
+				HitCharacters.Add(HitPair.Key);
+				//如果是在服务器上的开火那么直接调用
+				if(HasAuthority() && !bUseServerSideRewide)
+				{
+					UGameplayStatics::ApplyDamage(
+						HitPair.Key, //character that was hit
+						Damage * HitPair.Value,//multiply damage bu number of times
+						InstigatorController,
+						this,
+						UDamageType::StaticClass()
+					);
+				}
+			}
+		}
+		//如果在客户端上
+		if (!HasAuthority() && bUseServerSideRewide)
+		{
+			XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+			XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(InstigatorController) : XBlasterPlayerController;
+			//只会在本地传递这个RPC，这是因为我们的开火功能并没有写在服务器上，所有客户端都会响应，而伤害计算只能通过本地的actor
+			if (XCharacter && XBlasterPlayerController && XCharacter->GetLagCompensationComp() && XCharacter->IsLocallyControlled())
+			{
+				XCharacter->GetLagCompensationComp()->ServerShotGunScoreRequest(
+					HitCharacters,
+					Start,
+					HitTargets,
+					XBlasterPlayerController->GetSeverTime() - XBlasterPlayerController->SingleTripTime
 				);
 			}
 		}

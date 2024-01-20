@@ -77,6 +77,18 @@ public:
 	UPROPERTY(EditAnywhere)
 		float DamageOuterRadius = 500.f;
 
+	/*use for server-rewind*/
+	bool bUseServerSideRewind = false;
+	FVector_NetQuantize TraceStart;
+	FVector_NetQuantize100 InitialVelocity;
+
+	UPROPERTY(EditAnywhere, Category = "InitialSpeed")
+		float InitialSpeedForBullet = 15000.f;
+	UPROPERTY(EditAnywhere, Category = "InitialSpeed")
+		float InitialSpeedForGrenade = 1500.f;
+	UPROPERTY(EditAnywhere, Category = "InitialSpeed")
+		float InitialSpeedForRocket = 15000.f;
+
 private:
 	//定时器，控制TrailSystem消失再摧毁Rocket
 	FTimerHandle DestroyTimer;

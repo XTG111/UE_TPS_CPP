@@ -180,8 +180,9 @@ void AXBlasterPlayerController::ClientReportServerTime_Implementation(float Time
 {
 	//¼ÆËãRTT
 	float RoundTripTime = GetWorld()->GetTimeSeconds() - TimeOfClientRequest;
+	SingleTripTime = RoundTripTime * 0.5f;
 	//ServerCurrentTime
-	float CurrentServerTime = TimeServerReceivedClientRequest + (0.5f * RoundTripTime);
+	float CurrentServerTime = TimeServerReceivedClientRequest + SingleTripTime;
 
 	ClientServerDelta = CurrentServerTime - GetWorld()->GetTimeSeconds();
 }

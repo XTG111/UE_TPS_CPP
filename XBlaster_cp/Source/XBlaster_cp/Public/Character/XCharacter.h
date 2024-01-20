@@ -310,6 +310,7 @@ public:
 	FORCEINLINE UStaticMeshComponent* GetGrenadeComp() const { return AttachGrenade; }
 	FORCEINLINE bool GetbElimed() const { return bElimmed; }
 	FORCEINLINE UXPropertyComponent* GetPropertyComp() const { return PropertyComp; }
+	FORCEINLINE ULagCompensationComponent* GetLagCompensationComp() const { return LagCompensationComp; }
 	bool IsLocallyReloading();
 
 public:

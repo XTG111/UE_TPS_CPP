@@ -8,6 +8,8 @@
 #include "Particles/ParticleSystemComponent.h"
 #include "Sound/SoundCue.h"
 #include "DrawDebugHelpers.h"
+#include "BlasterComponent/LagCompensationComponent.h"
+#include "PlayerController/XBlasterPlayerController.h"
 
 
 //在战斗组件中会利用多播RPC调用Fire
@@ -32,18 +34,37 @@ void AHitScanWeaponParent::Fire(const FVector& HitTarget)
 		WeaponTraceHit(Start, HitTarget, FireHit);
 
 		//伤害计算
-		XCharacter = Cast<AXCharacter>(FireHit.GetActor());
-		if (XCharacter && HasAuthority() && InstigatorController)
+		AXCharacter* HitCharacter = Cast<AXCharacter>(FireHit.GetActor());
+		if (HitCharacter && InstigatorController)
 		{
-			//由于我们是每个客户端都进行射线检测射击，所以伤害判定在服务器上进行
-			UGameplayStatics::ApplyDamage(
-				XCharacter,
-				Damage,
-				InstigatorController,
-				this,
-				UDamageType::StaticClass()
-			);
-
+			//如果是服务器上的权威Actor开枪
+			if (HasAuthority() && !bUseServerSideRewide)
+			{
+				//伤害判定在服务器上进行
+				UGameplayStatics::ApplyDamage(
+					HitCharacter,
+					Damage,
+					InstigatorController,
+					this,
+					UDamageType::StaticClass()
+				);
+			}
+			//如果只是客户端上的Actor开枪，且开启了ServeRewide
+			if(!HasAuthority() && bUseServerSideRewide)
+			{
+				XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+				XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(InstigatorController) : XBlasterPlayerController;
+				if (XCharacter && XBlasterPlayerController && XCharacter->GetLagCompensationComp() && XCharacter->IsLocallyControlled())
+				{
+					XCharacter->GetLagCompensationComp()->ServerScoreRequest(
+						HitCharacter,
+						Start,
+						HitTarget,
+						XBlasterPlayerController->GetSeverTime() - XBlasterPlayerController->SingleTripTime,
+						this
+					);
+				}
+			}
 		}
 		//射线检测武器击中后产生粒子特效
 		if (ImpactParticle)

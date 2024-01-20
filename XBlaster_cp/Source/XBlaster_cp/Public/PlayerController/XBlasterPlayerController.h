@@ -45,6 +45,10 @@ public:
 	//设置手榴弹数
 	void SetHUDGrenadeAmount(int32 GrenadeAmount);
 
+	//客户端到服务器的时间
+	UPROPERTY()
+		float SingleTripTime = 0.f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;

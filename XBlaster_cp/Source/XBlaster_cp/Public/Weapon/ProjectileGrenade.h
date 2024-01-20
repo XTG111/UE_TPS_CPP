@@ -15,6 +15,9 @@ class XBLASTER_CP_API AProjectileGrenade : public AProjectileActor
 	GENERATED_BODY()
 public:
 	AProjectileGrenade();
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& Event) override;
+#endif
 	virtual void Destroyed() override;
 
 protected:

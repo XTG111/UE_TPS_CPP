@@ -201,6 +201,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
 		bool bUseScatter = false;
 
+	//线扫描武器伤害
+	UPROPERTY(EditAnywhere, Category = "HitScan_Damage")
+		float Damage = 20.f;
+
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点
 	UFUNCTION()
@@ -212,6 +216,10 @@ protected:
 		virtual void OnSphereEndOverlap(
 			UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int32 OtherBodyIndex
 		);
+
+	//决定是否使用ServerRewide功能检测是否击中目标
+	UPROPERTY(EditAnywhere)
+		bool bUseServerSideRewide = false;
 
 	/*武器状态*/
 	//决定每个武器状态有什么功能

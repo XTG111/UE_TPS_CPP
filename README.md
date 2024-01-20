@@ -3171,3 +3171,223 @@ void ULagCompensationComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	}
 }
 ```
+
+## 获取ReWide Time对应的Box信息
+我们的目标是实现当本地发射时，服务器能够回退到那个时间点判断是否击中
+```c++
+ServerSideRewind(TraceStart, HitLocation, HitCharacter, HitTime)
+//双向链表
+head->next()
+tail->prev()
+```
+1. 如果HitTime<OldestTime那么就不再进行server rewide。
+2. 双指针 younger older 最开始都指向head
+3. 如果HitTime > Younger Time 不可能，但我们还是将要去检测的FramePackage用younger的值赋值
+4. HitTime不一定和链表记录的节点一直，所以需要双指针来限制范围
+```c++
+while(olderTime > HitTime)
+{
+	older = older->next;
+	if(olerTime > HitTime)
+	{
+		younger = older;
+	}
+}
+```
+5. 插值获得HitTime的box坐标和旋转
+```c++
+FMath::VInterpTo(Current,Target,DeltaTime,InterpSpeed)
+```
+中间值相对于Current的偏移量DeltaMove
+```c++
+DeltaMove = (Current-Target)*FMath::Clamp(DeltaTime*InterpSpeed,0,1);
+```
+## 在RewideTime确认是否击中
+在上述流程中我们获得了需要回退的时间点的Box信息，现在就需要来处理是否击中的信息。
+具体流程就是
+1. 先存储当前被击中角色的Box信息，用于后续检测之后的恢复
+2. 改变当前角色的Box信息为我们求得的那个时间点的Box信息
+3. 关闭被击中角色的网格体碰撞，因为可能会阻挡检测，但在返回结果之前需要恢复
+4. 由于我们是会检测头部是否被击中，所以先开启头部Box的物理碰撞，然后利用射线检测检测是否击中，如果击中就返回结果
+5. 如果未击中那么就开启身体的Box，然后再检测，最终返回结果
+6. 如果都没有返回结果，那说明没有击中，返回结果。
+7. 调用方式--在ServerRewide函数中，传入求得的hitTIme的Box信息，最终ServerRewide函数返回是否击中结果，用于后续处理
+```c++
+FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackage& Package, AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation)
+{
+	if (HitCharacter == nullptr) return FServerSideRewindResult();
+	//回退之前的Box参数
+	FFramePackage CurrentFrame;
+	//存储当前Box信息到CurrentFrame中
+	CacheBoxPosition(HitCharacter, CurrentFrame);
+	//Package为要回退到的位置
+	MoveBoxes(HitCharacter, Package);
+
+	//关闭被击中角色的骨骼网格体碰撞
+	EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::NoCollision);
+
+	//先启用头部BOX的碰撞 来检测是否击中
+	UBoxComponent* HeadBox = HitCharacter->HitBoxCompMap[FName("head")];
+	HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	HeadBox->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+
+	FHitResult ConfirmHitResult;
+	const FVector TraveEnd = TraceStart + (HitLocation - TraceStart) * 1.25f;
+	UWorld* World = GetWorld();
+
+	if (World)
+	{
+		World->LineTraceSingleByChannel(
+			ConfirmHitResult,
+			TraceStart,
+			TraveEnd,
+			ECollisionChannel::ECC_Visibility
+		);
+
+		//如果击中了头部
+		if (ConfirmHitResult.bBlockingHit)
+		{
+			ResetBoxes(HitCharacter, CurrentFrame);
+			EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
+			return FServerSideRewindResult{ true,true };
+		}
+		//如果没有击中头部,检测其他Box
+		else
+		{
+			//为其他Box启用碰撞
+			for (auto& HitBoxPair : HitCharacter->HitBoxCompMap)
+			{
+				if (HitBoxPair.Value != nullptr)
+				{
+					HitBoxPair.Value->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+					HitBoxPair.Value->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+				}
+			}
+			//开始检测
+			World->LineTraceSingleByChannel(
+				ConfirmHitResult,
+				TraceStart,
+				TraveEnd,
+				ECollisionChannel::ECC_Visibility
+			);
+			if (ConfirmHitResult.bBlockingHit)
+			{
+				ResetBoxes(HitCharacter, CurrentFrame);
+				EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
+				return FServerSideRewindResult{ true,false };
+			}
+		}
+	}
+
+	return FServerSideRewindResult{ false,false };
+}
+```
+## Server Rewide 验证得分
+当本地Actor进行Hit时，可以利用serverRPC调用ServerRewide然后得到是否击中的准确结果，但是要主要我们传入的HitTime，在HitTime的时刻所显示的被击中角色在服务器上的位置，而服务器传给我们的时候经过了RTT/2的时间，也就是说如果我们把我们开枪的时间传递给了ServerRewide函数，服务器上的被击中actor并不在我们看到的那个位置，而是又运动了RTT/2，所以我们要传入的时间时当前Fire的Time - RTT/2。
+1. 我们在Lag组件中，添加一个ServerRPC函数，用于计算伤害，如果我们在客户端开火时，就会调用这个函数来计算伤害，而不是像以前一样把伤害放在服务器来做
+```c++
+void ULagCompensationComponent::ServerScoreRequest_Implementation(AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation, float HitTime, AWeaponParent* DamageCauser)
+{
+	FServerSideRewindResult Confirm = ServerSideRewind(HitCharacter, TraceStart, HitLocation, HitTime);
+	if (XCharacter && HitCharacter && DamageCauser && Confirm.bHitConfirmed)
+	{
+		//应用伤害
+		UGameplayStatics::ApplyDamage(
+			HitCharacter,
+			DamageCauser->Damage,
+			XCharacter->Controller,
+			DamageCauser,
+			UDamageType::StaticClass()
+		);
+	}
+}
+```
+2. 到每个应用伤害的武器类中，修改原有的逻辑，我们还定义了一个是否开启ServerRewide功能的bool值，如果不开启那么就会使用我们之前的算法，当我们射击时如果是高延迟，就会导致击中了但对方不会死亡。
+```c++
+if (HitCharacter && InstigatorController)
+		{
+			//如果是服务器上的权威Actor开枪
+			if (HasAuthority() && !bUseServerSideRewide)
+			{
+				//伤害判定在服务器上进行
+				UGameplayStatics::ApplyDamage(
+					HitCharacter,
+					Damage,
+					InstigatorController,
+					this,
+					UDamageType::StaticClass()
+				);
+			}
+			//如果只是客户端上的Actor开枪，且开启了ServeRewide
+			else if(!HasAuthority() && bUseServerSideRewide)
+			{
+				XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+				XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(InstigatorController) : XBlasterPlayerController;
+				if (XCharacter && XBlasterPlayerController && XCharacter->GetLagCompensationComp())
+				{
+					XCharacter->GetLagCompensationComp()->ServerScoreRequest(
+						HitCharacter,
+						Start,
+						HitTarget,
+						XBlasterPlayerController->GetSeverTime() - XBlasterPlayerController->SingleTripTime,
+						this
+					);
+				}
+			}
+
+		}
+```
+**注意我们在RPC中传入了武器，而角色的武器是会变化的，但是RPC并不能保证更新我们的武器，也就是说这个传入值，可能导致错误的结果**
+==但这些主要由服务器来决定，因为服务器是权威的，当前服务上Actor是哪一把武器那么造成的伤害就是这把武器决定的==
+所以有另外一种方法可以获取伤害，就是利用调用这个RPC的Character如果装备的武器那么使用这个装备的武器即可，即不传入武器变量
+
+# 对Projectile路径的预测在Server Rewide中
+抛物线  <--> 射线追踪
+```c++
+PreidctProjectilePath()可以进行预测
+	FPredictProjectilePathParams PathParams;
+	PathParams.bTraceWithChannel = true;
+	PathParams.bTraceWithCollision = true;
+	PathParams.DrawDebugTime = 5.f;
+	PathParams.DrawDebugType = EDrawDebugTrace::ForDuration;
+	PathParams.LaunchVelocity = GetActorForwardVector() * InitialSpeed;
+	PathParams.MaxSimTime = 4.f; //飞行时间
+	PathParams.ProjectileRadius = 5.f;//绘制半径
+	PathParams.SimFrequency = 30.f;
+	PathParams.StartLocation = GetActorLocation(); //预测起点
+	PathParams.TraceChannel = ECollisionChannel::ECC_Visibility;
+	PathParams.ActorsToIgnore.Add(this);
+
+	FPredictProjectilePathResult PathResult;
+
+	//预测轨迹
+	UGameplayStatics::PredictProjectilePath(this, PathParams, PathResult);
+```
+## 后期编辑属性
+我们在对projectile速度赋值时，由于蓝图的覆盖，当我们修改自定义的默认值时，Projectile的速度不会同时变化，所以需要重载一个函数
+```c++
+//bulletAcotr.h
+#if WITH_EDITOR //条件编译，在编译阶段检查，只有在编辑器里面才有左右
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& Event) override;
+#endif
+```
+当我们为一个变量标记为UPROPERTY，UE会为我们对这个变量生成一个FName来标记这个变量，当我们的属性发生变化时，我们可以通过检查FPropertyChangedEvent& Event的属性更改中检测到这个FName，然后可以通过这个FName访问其对应的变量
+```c++
+//bulletActor.cpp
+#if WITH_EDITOR
+void AProjectileBulletActor::PostEditChangeProperty(FPropertyChangedEvent& Event)
+{
+	Super::PostEditChangeProperty(Event);
+
+	FName PropertyName = Event.Property != nullptr ? Event.Property->GetFName() : NAME_None;
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(AProjectileBulletActor, InitialSpeed))
+	{
+		if (ProjectileMovementComp)
+		{
+			ProjectileMovementComp->MaxSpeed = InitialSpeed;
+			ProjectileMovementComp->InitialSpeed = InitialSpeed;
+		}
+	}
+}
+#endif
+```

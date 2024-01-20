@@ -15,6 +15,9 @@ class XBLASTER_CP_API AProjectileRocket : public AProjectileActor
 	GENERATED_BODY()
 public:
 	AProjectileRocket();
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& Event) override;
+#endif
 
 	//重写Destroyed()函数，因为在Rocket中是延迟3s才调用Destroy()
 	virtual void Destroyed() override;

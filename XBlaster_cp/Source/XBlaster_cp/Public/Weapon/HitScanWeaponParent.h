@@ -36,8 +36,7 @@ protected:
 		UParticleSystem* ImpactParticle;
 	UPROPERTY(EditAnywhere)
 		USoundCue* HitSound;
-	UPROPERTY(EditAnywhere)
-		float Damage = 20.f;
+
 	UPROPERTY(EditAnywhere)
 		class UParticleSystem* BeamParticles;	
 };
