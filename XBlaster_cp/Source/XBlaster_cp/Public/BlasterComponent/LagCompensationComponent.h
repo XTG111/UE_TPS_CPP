@@ -112,6 +112,9 @@ protected:
 	/*应用于霰弹枪的ServerRewide*/
 	FShotGunServerSideRewindResult ShotGunConfirmHit(const TArray<FFramePackage>& FramePackages, const FVector_NetQuantize& TraceStart, const TArray<FVector_NetQuantize>& HitLocations);
 
+	/*Projectile*/
+	FServerSideRewindResult ProjectileConfirmHit(const FFramePackage& Package, AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime);
+
 private:
 
 	//角色
@@ -131,6 +134,8 @@ private:
 public:
 	//debug 显示FramePackage
 	void ShowFramePackage(const FFramePackage& Package, const FColor Color);
+
+	/*ServerSideRewind For HitScan*/
 	//计算HitTime的Box信息
 	FServerSideRewindResult ServerSideRewind(AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation, float HitTime);
 	
@@ -145,4 +150,11 @@ public:
 	//由于霰弹枪的攻击得分计算
 	UFUNCTION(Server, Reliable)
 		void ServerShotGunScoreRequest(const TArray<AXCharacter*>& HitCharacters, const FVector_NetQuantize& TraceStart, const TArray<FVector_NetQuantize>& HitLocations, float HitTime);
+
+	/*Projectile Server RPC*/
+	UFUNCTION(Server, Reliable)
+		void ServerProjectileScoreRequest(AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime);
+
+	/*Projectile Server Rewind */
+	FServerSideRewindResult ProjectileServerSideRewind(AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime);
 };

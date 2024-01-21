@@ -37,8 +37,9 @@ void AHitScanWeaponParent::Fire(const FVector& HitTarget)
 		AXCharacter* HitCharacter = Cast<AXCharacter>(FireHit.GetActor());
 		if (HitCharacter && InstigatorController)
 		{
+			bool bCauseAuthDamage = !bUseServerSideRewide || OwnerPawn->IsLocallyControlled();
 			//如果是服务器上的权威Actor开枪
-			if (HasAuthority() && !bUseServerSideRewide)
+			if (HasAuthority() && bCauseAuthDamage)
 			{
 				//伤害判定在服务器上进行
 				UGameplayStatics::ApplyDamage(

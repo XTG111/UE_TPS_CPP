@@ -154,7 +154,8 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 			{
 				HitCharacters.Add(HitPair.Key);
 				//如果是在服务器上的开火那么直接调用
-				if(HasAuthority() && !bUseServerSideRewide)
+				bool bCauseAuthDamage = !bUseServerSideRewide || OwnerPawn->IsLocallyControlled();
+				if(HasAuthority() && bCauseAuthDamage)
 				{
 					UGameplayStatics::ApplyDamage(
 						HitPair.Key, //character that was hit

@@ -48,7 +48,7 @@ public:
 	UPROPERTY(EditAnywhere)
 		class USoundCue* ImpactSound;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(VisibleAnywhere)
 		float DamageBaseFloat = 10.f;
 
 	//NiagaraSystem,用于生成Niagara
@@ -78,7 +78,8 @@ public:
 		float DamageOuterRadius = 500.f;
 
 	/*use for server-rewind*/
-	bool bUseServerSideRewind = false;
+	UPROPERTY(EditAnywhere)
+		bool bUseServerSideRewind = false;
 	FVector_NetQuantize TraceStart;
 	FVector_NetQuantize100 InitialVelocity;
 

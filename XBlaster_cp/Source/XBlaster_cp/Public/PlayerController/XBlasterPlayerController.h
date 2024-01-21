@@ -6,6 +6,9 @@
 #include "GameFramework/PlayerController.h"
 #include "XBlasterPlayerController.generated.h"
 
+//广播Ping
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHighPingDelegate, bool, bPingTooHigh);
+
 /**
  * 
  */
@@ -48,6 +51,9 @@ public:
 	//客户端到服务器的时间
 	UPROPERTY()
 		float SingleTripTime = 0.f;
+
+	//用来广播Ping过高
+	FHighPingDelegate HighPingDelegate;
 
 protected:
 	virtual void BeginPlay() override;
@@ -160,6 +166,12 @@ private:
 	//检测ping的间隔,以及pingwarning冷却时间
 	UPROPERTY(EditAnywhere)
 		float CheckPingFrequency = 20.f;
+	//ServerRPC,用来通知服务器此时的Ping状态 以更改serverrewind
+	UFUNCTION(Server, Reliable)
+		void ServerReportPingStatus(bool bHighPing);
+
+
+
 	//ping的阈值
 	UPROPERTY(EditAnywhere)
 		float HighPingThreshold = 50.f;

@@ -19,7 +19,11 @@ public:
 
 private:
 
+	//所拥有的子弹类
 	UPROPERTY(EditAnywhere)
 		TSubclassOf<class AProjectileActor> ProjectileClass;
+	//用于服务器回退验证的子弹类
+	UPROPERTY(EditAnywhere)
+		TSubclassOf<AProjectileActor> ServerSideRewindProjectileClass;
 	
 };

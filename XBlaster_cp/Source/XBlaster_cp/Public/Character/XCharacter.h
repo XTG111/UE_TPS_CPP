@@ -46,6 +46,8 @@ public:
 	void PlayReloadMontage();
 	//投掷动画
 	void PlayGrenadeMontage();
+	//交换武器的动画
+	void PlaySwapMontage();
 
 	//控制模拟机器上的转向动画，repnotify;
 	virtual void OnRep_ReplicatedMovement() override;
@@ -142,6 +144,8 @@ protected:
 		UAnimMontage* ReloadMontage;
 	UPROPERTY(EditAnywhere, Category = Combat)
 		UAnimMontage* GrenadeMontage;
+	UPROPERTY(EditAnywhere, Category = Combat)
+		UAnimMontage* SwapMontage;
 
 	void DroporDestroyWeapon(AWeaponParent* Weapon);
 
@@ -312,6 +316,8 @@ public:
 	FORCEINLINE UXPropertyComponent* GetPropertyComp() const { return PropertyComp; }
 	FORCEINLINE ULagCompensationComponent* GetLagCompensationComp() const { return LagCompensationComp; }
 	bool IsLocallyReloading();
+
+	bool bFinishedSwap = false;
 
 public:
 	//控制哪些操作将被禁用

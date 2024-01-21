@@ -8,6 +8,7 @@
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
 #include "Weapon/WeaponParent.h"
+#include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
 
 // Sets default values for this component's properties
 ULagCompensationComponent::ULagCompensationComponent()
@@ -117,6 +118,11 @@ FShotGunServerSideRewindResult ULagCompensationComponent::ShotGunServerSideRewin
 		FramesToCheck.Add(GetFrameToCheck(HitCharacter, HitTime));
 	}
 	return ShotGunConfirmHit(FramesToCheck, TraceStart, HitLocations);
+}
+FServerSideRewindResult ULagCompensationComponent::ProjectileServerSideRewind(AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime)
+{
+	FFramePackage FrameToCheck = GetFrameToCheck(HitCharacter, HitTime);
+	return ProjectileConfirmHit(FrameToCheck, HitCharacter, TraceStart, InitialVelocity, HitTime);
 }
 
 FFramePackage ULagCompensationComponent::GetFrameToCheck(AXCharacter* HitCharacter, float HitTime)
@@ -285,7 +291,7 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 	//先启用头部BOX的碰撞 来检测是否击中
 	UBoxComponent* HeadBox = HitCharacter->HitBoxCompMap[FName("head")];
 	HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	HeadBox->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+	HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
 
 	FHitResult ConfirmHitResult;
 	const FVector TraveEnd = TraceStart + (HitLocation - TraceStart) * 1.25f;
@@ -297,7 +303,7 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 			ConfirmHitResult,
 			TraceStart,
 			TraveEnd,
-			ECollisionChannel::ECC_Visibility
+			ECC_HitBox
 		);
 
 		//如果击中了头部
@@ -316,7 +322,7 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 				if (HitBoxPair.Value != nullptr)
 				{
 					HitBoxPair.Value->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-					HitBoxPair.Value->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+					HitBoxPair.Value->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
 				}
 			}
 			//开始检测
@@ -324,7 +330,7 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 				ConfirmHitResult,
 				TraceStart,
 				TraveEnd,
-				ECollisionChannel::ECC_Visibility
+				ECC_HitBox
 			);
 			if (ConfirmHitResult.bBlockingHit)
 			{
@@ -334,7 +340,8 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 			}
 		}
 	}
-
+	ResetBoxes(HitCharacter, CurrentFrame);
+	EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
 	return FServerSideRewindResult{ false,false };
 }
 
@@ -369,7 +376,7 @@ FShotGunServerSideRewindResult ULagCompensationComponent::ShotGunConfirmHit(cons
 		//先启用头部BOX的碰撞 来检测是否击中
 		UBoxComponent* HeadBox = Frame.Character->HitBoxCompMap[FName("head")];
 		HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		HeadBox->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+		HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
 	}
 	
 	UWorld* World = GetWorld();
@@ -386,7 +393,7 @@ FShotGunServerSideRewindResult ULagCompensationComponent::ShotGunConfirmHit(cons
 				ConfirmHitResult,
 				TraceStart,
 				TraveEnd,
-				ECollisionChannel::ECC_Visibility
+				ECC_HitBox
 			);
 			AXCharacter* HitCharacter = Cast<AXCharacter>(ConfirmHitResult.GetActor());
 			if (HitCharacter)
@@ -411,7 +418,7 @@ FShotGunServerSideRewindResult ULagCompensationComponent::ShotGunConfirmHit(cons
 			if (HitBoxPair.Value != nullptr)
 			{
 				HitBoxPair.Value->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-				HitBoxPair.Value->SetCollisionResponseToChannel(ECollisionChannel::ECC_Visibility, ECollisionResponse::ECR_Block);
+				HitBoxPair.Value->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
 			}
 		}
 		//关闭头部的碰撞
@@ -430,7 +437,7 @@ FShotGunServerSideRewindResult ULagCompensationComponent::ShotGunConfirmHit(cons
 				ConfirmHitResult,
 				TraceStart,
 				TraveEnd,
-				ECollisionChannel::ECC_Visibility
+				ECC_HitBox
 			);
 			AXCharacter* HitCharacter = Cast<AXCharacter>(ConfirmHitResult.GetActor());
 			if (HitCharacter)
@@ -454,6 +461,88 @@ FShotGunServerSideRewindResult ULagCompensationComponent::ShotGunConfirmHit(cons
 	}
 
 	return ShotGunResult;
+}
+
+FServerSideRewindResult ULagCompensationComponent::ProjectileConfirmHit(const FFramePackage& Package, AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime)
+{
+	//回退之前的Box参数
+	FFramePackage CurrentFrame;
+	//存储当前Box信息到CurrentFrame中
+	CacheBoxPosition(HitCharacter, CurrentFrame);
+	//Package为要回退到的位置
+	MoveBoxes(HitCharacter, Package);
+
+	//关闭被击中角色的骨骼网格体碰撞
+	EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::NoCollision);
+
+	//先启用头部BOX的碰撞 来检测是否击中
+	UBoxComponent* HeadBox = HitCharacter->HitBoxCompMap[FName("head")];
+	HeadBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
+
+	/*预测轨迹*/
+	FPredictProjectilePathParams PathParams;
+	PathParams.bTraceWithCollision = true;
+	PathParams.MaxSimTime = MaxRecordTime;
+	PathParams.LaunchVelocity = InitialVelocity;
+	PathParams.StartLocation = TraceStart;
+	PathParams.SimFrequency = 15.f;
+	PathParams.ProjectileRadius = 5.f;
+	PathParams.TraceChannel = ECC_HitBox;
+	PathParams.ActorsToIgnore.Add(GetOwner());
+	/*Debug*/
+	PathParams.DrawDebugTime = 5.f;
+	PathParams.DrawDebugType = EDrawDebugTrace::ForDuration;
+	FPredictProjectilePathResult PathResult;
+	UGameplayStatics::PredictProjectilePath(this, PathParams, PathResult);
+
+	//当击中头部返回
+	if (PathResult.HitResult.bBlockingHit)
+	{
+		//如果击中了头部
+		if (PathResult.HitResult.Component.IsValid())
+		{
+			UBoxComponent* Box = Cast<UBoxComponent>(PathResult.HitResult.Component);
+			if (Box)
+			{
+				DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent(), FQuat(Box->GetComponentRotation()), FColor::Red, false, 5.f);
+			}
+		}
+		ResetBoxes(HitCharacter, CurrentFrame);
+		EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
+		return FServerSideRewindResult{ true,true };
+	}
+	//没有击中头部，检测是否击中其他部位
+	else
+	{
+		//为其他Box启用碰撞
+		for (auto& HitBoxPair : HitCharacter->HitBoxCompMap)
+		{
+			if (HitBoxPair.Value != nullptr)
+			{
+				HitBoxPair.Value->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+				HitBoxPair.Value->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
+			}
+		}
+		UGameplayStatics::PredictProjectilePath(this, PathParams, PathResult);
+		if (PathResult.HitResult.bBlockingHit)
+		{
+			if (PathResult.HitResult.Component.IsValid())
+			{
+				UBoxComponent* Box = Cast<UBoxComponent>(PathResult.HitResult.Component);
+				if (Box)
+				{
+					DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent(), FQuat(Box->GetComponentRotation()), FColor::Cyan, false, 5.f);
+				}
+			}
+			ResetBoxes(HitCharacter, CurrentFrame);
+			EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
+			return FServerSideRewindResult{ true,false };
+		}
+	}
+	ResetBoxes(HitCharacter, CurrentFrame);
+	EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
+	return FServerSideRewindResult{ false,false };
 }
 
 //ServerRPC_Implementation
@@ -494,6 +583,23 @@ void ULagCompensationComponent::ServerShotGunScoreRequest_Implementation(const T
 		UGameplayStatics::ApplyDamage(
 			HitCharacter,
 			TotalDamage,
+			XCharacter->Controller,
+			XCharacter->GetEquippedWeapon(),
+			UDamageType::StaticClass()
+		);
+	}
+}
+
+//Projectile Server
+void ULagCompensationComponent::ServerProjectileScoreRequest_Implementation(AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize100& InitialVelocity, float HitTime)
+{
+	FServerSideRewindResult Confirm = ProjectileServerSideRewind(HitCharacter, TraceStart, InitialVelocity, HitTime);
+	if (XCharacter && HitCharacter && Confirm.bHitConfirmed)
+	{
+		//应用伤害
+		UGameplayStatics::ApplyDamage(
+			HitCharacter,
+			XCharacter->GetEquippedWeapon()->Damage,
 			XCharacter->Controller,
 			XCharacter->GetEquippedWeapon(),
 			UDamageType::StaticClass()

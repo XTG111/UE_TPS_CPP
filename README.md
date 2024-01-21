@@ -3391,3 +3391,64 @@ void AProjectileBulletActor::PostEditChangeProperty(FPropertyChangedEvent& Event
 }
 #endif
 ```
+
+## Projectile 本地生成
+1. 什么时候产生复制子弹
+[image](https://img2.imgtp.com/2024/01/21/Usw8moFs.png)
+武器本身拥有一个是否开启ServerSideRewind的变量
+- 如果我们在服务器控制的角色上发射一个弹丸，由于服务器是不需要SSR的所以直接复制给其他客户端，
+- 如果是其他客户端在服务器上发射了一个弹丸，那么这个弹丸类型应该是不可复制的，因为客户端现在发射子弹的角色所生成的子弹是在本地直接生成，然后利用SSR发送得分验证请求。
+- 那么对于客户端来说，首先是本地发射子弹的角色，他将产生一个不复制的但是具有SSR属性的子弹，去发送给服务器请求得分
+- 对于客户端上所模拟的其他Actor如果发射子弹的话，那么就和本地的没有关系，所产生的子弹是不具备SSR且不可复制的。
+
+如果不开启SSR
+就和以前一样，服务器产生了一个复制的子弹，客户端开火的话并不会产生子弹
+
+2. 相当于我们角色有2种子弹，对于服务器来说这两种基本没有区别，但是对于客户端来说，为了能够即使响应开枪请求，所以我们会在本地生成一个不复制但是具有SSR属性的子弹，而当我们开枪过后，服务器会接到开枪响应此时服务器会生成另外一个可复制的子弹，然后将这个子弹传播到所有客户端上
+由于我们本地的要去请求SSR的子弹是不可复制的，所以其并不能够被传输到服务器上。所以我们需要通过服务器上生成的可复制子弹进行伤害确定，而这个伤害就是当前角色所持武器的伤害。所以我们要为这个可复制的子弹设置伤害
+
+## 子弹的包围盒用于SSR
+为所有包围盒新建了一个检测Channel用于SSR。
+
+## SeverRewind For Projectile
+和HitScan的类似，只不过我们的检测是利用projectile预测去做的，利用预测的结果与匹配Box观测是否能够击中
+
+# 动态禁止ServerRewind
+如果Ping高达一定的阈值就会禁用
+可以在服务器上禁用，但不能只在客户端上禁用。
+所以通过设置控制是否开启ServerRewind的布尔值变量为可复制的即可，当我们在服务器上修改它时，会传递到客户端
+这就涉及到武器(设置bUseServerRewind)和控制器(Ping的检测)之间的通信。
+我们需要将控制器求得的ping是否高于设定阈值这个bool值传给武器代码中，来设置bUseServerRewind的真假。
+我们可以使用委托广播的方式来通知武器类中设置bUseServerRewind的函数
+这一切应该交给服务器来处理，所以
+1. 新建一个ServerRPC函数用来处理客户端将Ping的信息发送给服务器，并广播
+```c++
+//Is Ping Too High _Implementation
+void AXBlasterPlayerController::ServerReportPingStatus_Implementation(bool bHighPing)
+{
+	HighPingDelegate.Broadcast(bHighPing);
+}
+```
+在我们检测ping的时候调用它
+2. 在武器类我们应当给HighPingDelegate绑定一个回调函数，当其广播时触发然后修改值，可以在我们装备武器的时候设置绑定。
+```c++
+//用于绑BlasterController中的委托
+void AWeaponParent::OnPingTooHigh(bool bPingTooHigh)
+{
+	bUseServerSideRewide = !bPingTooHigh;
+}
+```
+
+# 对延迟的进一步修改
+1. 加载子弹时进行客户端预测
+2. 当开始加载时设置客户端的CombatState为不占用的这样可以避免延迟，直接射击
+3. 火箭弹和手雷的服务器回退检测是否造成伤害
+4. Change the Hit Target when Confirm Hit
+
+# Cheating
+1. 对内存的修改
+	a. peek -> poke
+	b. injecting .dlls
+2. 通过网络流量进行欺骗，通过修改发送给服务器的数据包
+3. Memory EDITING
+	内存地址上存储了子弹数和伤害的一些数据

@@ -12,3 +12,5 @@ enum class ETuringInPlace : uint8
 
 //定义说明我们自己添加的Channel
 #define ECC_SkeletalMesh ECollisionChannel::ECC_GameTraceChannel1
+//继续添加Channel
+#define ECC_HitBox ECollisionChannel::ECC_GameTraceChannel2

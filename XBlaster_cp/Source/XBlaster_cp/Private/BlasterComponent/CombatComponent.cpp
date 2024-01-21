@@ -146,15 +146,26 @@ void UCombatComponent::DropEquippedWeapon()
 		EquippedWeapon->Drop();
 	}
 	//丢枪后更新UI
-	XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
-	if (CharacterEx->IsLocallyControlled() && XBlasterPlayerController)
+	if(SecondWeapon == nullptr)
 	{
-		XBlasterPlayerController->SetHUDCarriedAmmo(0);
-		XBlasterPlayerController->SetHUDWeaponAmmo(0);
+		XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(CharacterEx->Controller) : XBlasterPlayerController;
+		if (CharacterEx->IsLocallyControlled() && XBlasterPlayerController)
+		{
+			XBlasterPlayerController->SetHUDCarriedAmmo(0);
+			XBlasterPlayerController->SetHUDWeaponAmmo(0);
+		}
+		EquippedWeapon = nullptr;
+		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = true;
+		CharacterEx->bUseControllerRotationYaw = false;
 	}
-	EquippedWeapon = nullptr;
-	CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = true;
-	CharacterEx->bUseControllerRotationYaw = false;
+	else
+	{
+		EquippedWeapon = nullptr;
+		EquippedWeapon = SecondWeapon;
+		SecondWeapon->SetOwner(nullptr);
+		SecondWeapon = nullptr;
+		EquipPrimaryWeapon(EquippedWeapon);	
+	}
 	if(CharacterEx && !CharacterEx->HasAuthority()) ServerDropWeapon();
 }
 
@@ -164,13 +175,19 @@ void UCombatComponent::ServerDropWeapon_Implementation()
 	if (EquippedWeapon)
 	{
 		EquippedWeapon->Drop();
+		EquippedWeapon = nullptr;
 	}
-	EquippedWeapon = nullptr;
-	if (CharacterEx)
+	if (SecondWeapon != nullptr)
+	{
+		EquippedWeapon = SecondWeapon;
+		SecondWeapon = nullptr;
+	}
+	if (EquippedWeapon == nullptr && CharacterEx)
 	{
 		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = true;
 		CharacterEx->bUseControllerRotationYaw = false;
 	}
+	
 }
 
 void UCombatComponent::ChangeEquippedWeapon()
@@ -364,7 +381,7 @@ void UCombatComponent::OnRep_EquippedWeapon()
 		CharacterEx->bUseControllerRotationYaw = true;
 		EquippedWeapon->SetHUDAmmo();
 	}
-	if (CharacterEx && CharacterEx->IsLocallyControlled())
+	if (CharacterEx && CharacterEx->IsLocallyControlled() && EquippedWeapon)
 	{
 		UpdateCarriedAmmo();
 		XBlasterPlayerController->SetHUDWeaponAmmo(EquippedWeapon->Ammo);
@@ -496,6 +513,12 @@ void UCombatComponent::OnRep_CombatState()
 			ShowAttachedGrenade(true);
 		}
 		break;
+	case ECombatState::ECS_SwapingWeapons:
+		if (CharacterEx && !CharacterEx->IsLocallyControlled())
+		{
+			CharacterEx->PlaySwapMontage();
+		}
+		break;
 	case ECombatState::ECS_MAX:
 		break;
 	default:
@@ -513,6 +536,39 @@ void UCombatComponent::FinishingReloading()
 		//在动画播放结束之后更新
 		UpdateAmmoAndCarriedAmmo();
 	}
+}
+
+
+void UCombatComponent::FinishSwap()
+{
+	if (CharacterEx && CharacterEx->HasAuthority())
+	{
+		CombatState = ECombatState::ECS_Unoccupied;
+	}
+	if (CharacterEx)
+	{
+		CharacterEx->bFinishedSwap = true;
+	}
+	if (SecondWeapon)
+	{
+		SecondWeapon->EnableCustomDepth(true);
+	}
+}
+
+
+void UCombatComponent::FinishSwapSecondWeapon()
+{
+	//附加
+	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
+	AttachActorToRightHand(EquippedWeapon);
+	//Ammo是没有OnRep的所以我们通过EquippedWeapon来传递HUD的更新
+	EquippedWeapon->SetHUDAmmo();
+	//备用弹量是可复制的，所以利用其可以更新客户端的HUD
+	UpdateCarriedAmmo();
+	PlayEquipWeaponSound(EquippedWeapon);
+
+	SecondWeapon->SetWeaponState(EWeaponState::EWS_Second);
+	AttachActorToBackPackage(SecondWeapon);
 }
 
 void UCombatComponent::UpdateAmmoAndCarriedAmmo()
@@ -634,7 +690,7 @@ void UCombatComponent::FireProjectileWeapon(bool bPressed)
 			LocalFire(HitTarget);
 		}
 		//播放蒙太奇动画以及伤害判定
-		ServerFire(bPressed, HitTarget);
+		ServerFire(bPressed, HitTarget,EquippedWeapon->FireDelay);
 	}
 }
 
@@ -651,7 +707,7 @@ void UCombatComponent::FireHitScanWeapon(bool bPressed)
 		}
 
 		//播放蒙太奇动画以及伤害判定
-		ServerFire(bPressed, HitTarget);
+		ServerFire(bPressed, HitTarget, EquippedWeapon->FireDelay);
 	}
 }
 
@@ -667,13 +723,23 @@ void UCombatComponent::FireShotGunWeapon(bool bPressed)
 		{
 			LocalShotGunFire(HitTargets);
 		}
-		ServerShotGunFire(bPressed, HitTargets);
+		ServerShotGunFire(bPressed, HitTargets, EquippedWeapon->FireDelay);
 	}
 }
 
-void UCombatComponent::ServerShotGunFire_Implementation(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets)
+void UCombatComponent::ServerShotGunFire_Implementation(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets, float FireDelay)
 {
 	MulticastShotGunFire(bPressed, TraceHitTargets);
+}
+
+bool UCombatComponent::ServerShotGunFire_Validate(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets, float FireDelay)
+{
+	if (EquippedWeapon)
+	{
+		bool bNearlyEqual = FMath::IsNearlyEqual(EquippedWeapon->FireDelay, FireDelay, 0.001f);
+		return bNearlyEqual;
+	}
+	return true;
 }
 
 void UCombatComponent::MulticastShotGunFire_Implementation(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets)
@@ -690,14 +756,13 @@ bool UCombatComponent::HaveAmmoCanFire()
 	{
 		return false;
 	}
-	//本地直接根据是否在换弹判断能否开枪
-	if (bLocallyReloading) return false;
 	//对于霰弹枪的单独开枪判断
 	if (EquippedWeapon->Ammo > 0 && bCanFire && CombatState == ECombatState::ECS_Reloading && EquippedWeapon->WeaponType == EWeaponType::EWT_ShotGun)
 	{
 		return true;
 	}
-
+	//本地直接根据是否在换弹判断能否开枪
+	if (bLocallyReloading) return false;
 	return EquippedWeapon->Ammo > 0 && bCanFire && CombatState == ECombatState::ECS_Unoccupied;
 }
 
@@ -708,10 +773,22 @@ void UCombatComponent::IsFired(bool bPressed)
 	ControlFire(bFired);
 }
 
+
 //RPC,如果不通过repNotify进行值改变操作，其他机器上不能观测结果
-void UCombatComponent::ServerFire_Implementation(bool bPressed, const FVector_NetQuantize& TraceHitTarget)
+void UCombatComponent::ServerFire_Implementation(bool bPressed, const FVector_NetQuantize& TraceHitTarget, float FireDelay)
 {
 	MulticastFire(bPressed, TraceHitTarget);
+}
+
+//验证
+bool UCombatComponent::ServerFire_Validate(bool bPressed, const FVector_NetQuantize& TraceHitTarget, float FireDelay)
+{
+	if (EquippedWeapon)
+	{
+		bool bNearlyEqual = FMath::IsNearlyEqual(EquippedWeapon->FireDelay, FireDelay, 0.001f);
+		return bNearlyEqual;
+	}
+	return true;
 }
 
 void UCombatComponent::MulticastFire_Implementation(bool bPressed, const FVector_NetQuantize& TraceHitTarget)
@@ -977,22 +1054,23 @@ void UCombatComponent::ShowAttachedGrenade(bool bShowGrenade)
 //交换武器
 void UCombatComponent::SwapWeapon()
 {
-	if (CombatState != ECombatState::ECS_Unoccupied) return;
-	AWeaponParent* TempWeapon = EquippedWeapon;
-	EquippedWeapon = SecondWeapon;
-	SecondWeapon = TempWeapon;
+	if (CombatState != ECombatState::ECS_Unoccupied || CharacterEx ==nullptr) return;
 
-	//附加
-	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
-	AttachActorToRightHand(EquippedWeapon);
-	//Ammo是没有OnRep的所以我们通过EquippedWeapon来传递HUD的更新
-	EquippedWeapon->SetHUDAmmo();
-	//备用弹量是可复制的，所以利用其可以更新客户端的HUD
-	UpdateCarriedAmmo();
-	PlayEquipWeaponSound(EquippedWeapon);
+	CharacterEx->PlaySwapMontage();
+	CharacterEx->bFinishedSwap = false;
+	CombatState = ECombatState::ECS_SwapingWeapons;
+	if (SecondWeapon)
+	{
+		SecondWeapon->EnableCustomDepth(false);
+	}
 
-	SecondWeapon->SetWeaponState(EWeaponState::EWS_Second);
-	AttachActorToBackPackage(SecondWeapon);
+	if (EquippedWeapon != nullptr && SecondWeapon == nullptr) return;
+	else if (EquippedWeapon != nullptr && SecondWeapon != nullptr)
+	{
+		AWeaponParent* TempWeapon = EquippedWeapon;
+		EquippedWeapon = SecondWeapon;
+		SecondWeapon = TempWeapon;
+	}
 }
 
 //插值设置视角

@@ -125,7 +125,10 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	}
 	
 	bUseFABRIK = XCharacter->GetCombateState() == ECombatState::ECS_Unoccupied;
-	if (XCharacter->IsLocallyControlled() && XCharacter->GetCombateState() != ECombatState::ECS_ThrowingGrenade)
+	bool bFABRIKoverride = XCharacter->IsLocallyControlled() &&
+		XCharacter->GetCombateState() != ECombatState::ECS_ThrowingGrenade && 
+		XCharacter->bFinishedSwap;
+	if(bFABRIKoverride)
 	{
 		bUseFABRIK = !XCharacter->IsLocallyReloading();
 	}

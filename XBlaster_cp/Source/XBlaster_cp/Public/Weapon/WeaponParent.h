@@ -218,7 +218,7 @@ protected:
 		);
 
 	//决定是否使用ServerRewide功能检测是否击中目标
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(Replicated, EditAnywhere)
 		bool bUseServerSideRewide = false;
 
 	/*武器状态*/
@@ -227,4 +227,8 @@ protected:
 	virtual void HandleOnEquipped();
 	virtual void HandleOnDropped();
 	virtual void HandleOnSecond();
+
+	/*High Ping*/
+	UFUNCTION()
+		void OnPingTooHigh(bool bPingTooHigh);
 };

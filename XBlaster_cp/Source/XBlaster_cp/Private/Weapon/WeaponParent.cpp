@@ -58,6 +58,7 @@ void AWeaponParent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AWeaponParent, WeaponState);
+	DOREPLIFETIME_CONDITION(AWeaponParent, bUseServerSideRewide,COND_OwnerOnly);
 }
 
 
@@ -344,6 +345,17 @@ void AWeaponParent::HandleOnEquipped()
 		WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
 	}
 	EnableCustomDepth(false);
+
+	//绑定HighPing的委托
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+	if (XCharacter && bUseServerSideRewide)
+	{
+		XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(XCharacter->Controller) : XBlasterPlayerController;
+		if (XBlasterPlayerController && HasAuthority() && !XBlasterPlayerController->HighPingDelegate.IsBound())
+		{
+			XBlasterPlayerController->HighPingDelegate.AddDynamic(this, &AWeaponParent::OnPingTooHigh);
+		}
+	}
 }
 
 void AWeaponParent::HandleOnDropped()
@@ -362,6 +374,17 @@ void AWeaponParent::HandleOnDropped()
 	WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_BLUE);
 	WeaponMesh->MarkRenderStateDirty();
 	EnableCustomDepth(true);
+
+	//取消HighPing的委托
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+	if (XCharacter && bUseServerSideRewide)
+	{
+		XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(XCharacter->Controller) : XBlasterPlayerController;
+		if (XBlasterPlayerController && HasAuthority() && XBlasterPlayerController->HighPingDelegate.IsBound())
+		{
+			XBlasterPlayerController->HighPingDelegate.RemoveDynamic(this, &AWeaponParent::OnPingTooHigh);
+		}
+	}
 }
 
 void AWeaponParent::HandleOnSecond()
@@ -380,8 +403,25 @@ void AWeaponParent::HandleOnSecond()
 		WeaponMesh->SetEnableGravity(true);
 		WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
 	}
-	EnableCustomDepth(true);
+	//EnableCustomDepth(true);
 	WeaponMesh->SetCustomDepthStencilValue(CUSTOM_DEPTH_TAN);
 	WeaponMesh->MarkRenderStateDirty();
+
+	//取消HighPing的委托
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+	if (XCharacter && bUseServerSideRewide)
+	{
+		XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(XCharacter->Controller) : XBlasterPlayerController;
+		if (XBlasterPlayerController && HasAuthority() && XBlasterPlayerController->HighPingDelegate.IsBound())
+		{
+			XBlasterPlayerController->HighPingDelegate.RemoveDynamic(this, &AWeaponParent::OnPingTooHigh);
+		}
+	}
+}
+
+//用于绑BlasterController中的委托
+void AWeaponParent::OnPingTooHigh(bool bPingTooHigh)
+{
+	bUseServerSideRewide = !bPingTooHigh;
 }
 

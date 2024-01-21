@@ -32,6 +32,13 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void FinishingReloading();
 
+	//动画通知 当交换武器动画结束
+	UFUNCTION(BlueprintCallable)
+		void FinishSwap();
+
+	UFUNCTION(BlueprintCallable)
+		void FinishSwapSecondWeapon();
+
 	//攻击函数
 	void IsFired(bool bPressed);
 
@@ -77,14 +84,14 @@ protected:
 	void FireShotGunWeapon(bool bPressed);
 
 	//RPC传递霰弹枪的命中目标到服务器
-	UFUNCTION(Server, Reliable)
-		void ServerShotGunFire(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets);
+	UFUNCTION(Server, Reliable, WithValidation)
+		void ServerShotGunFire(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets, float FireDelay);
 	UFUNCTION(NetMulticast, Reliable)
 		void MulticastShotGunFire(bool bPressed, const TArray<FVector_NetQuantize>& TraceHitTargets);
 
 	//RPC传递射击状态，传递是否开枪，和客户端准星位置Call from Client Do in the server
-	UFUNCTION(Server, Reliable)
-		void ServerFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);
+	UFUNCTION(Server, Reliable, WithValidation)
+		void ServerFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget, float FireDelay);
 	//Multicast RPC Call from Server
 	UFUNCTION(NetMulticast, Reliable)
 		void MulticastFire(bool bPressed, const FVector_NetQuantize& TraceHitTarget);

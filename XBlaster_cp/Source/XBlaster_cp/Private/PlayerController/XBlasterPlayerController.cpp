@@ -416,6 +416,7 @@ void AXBlasterPlayerController::OnRep_MatchState()
 	}
 }
 
+
 void AXBlasterPlayerController::HandleMatchHasStarted()
 {
 	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
@@ -490,6 +491,13 @@ void AXBlasterPlayerController::HandleCoolDown()
 	}
 }
 
+//Is Ping Too High _Implementation
+void AXBlasterPlayerController::ServerReportPingStatus_Implementation(bool bHighPing)
+{
+	HighPingDelegate.Broadcast(bHighPing);
+}
+
+
 void AXBlasterPlayerController::HighPingWarning()
 {
 	XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
@@ -543,6 +551,11 @@ void AXBlasterPlayerController::PlayHighPingAnim(float DeltaTime)
 			{
 				PingAnimationRunningTime = 0.f;
 				HighPingWarning();
+				ServerReportPingStatus(true);
+			}
+			else
+			{
+				ServerReportPingStatus(false);
 			}
 		}
 		HighPingRunningTime = 0.f;
