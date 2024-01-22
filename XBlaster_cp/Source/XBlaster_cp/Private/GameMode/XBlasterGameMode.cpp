@@ -72,9 +72,11 @@ void AXBlasterGameMode::Tick(float DeltatTime)
 
 void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlasterPlayerController* VictimController, AXBlasterPlayerController* AttackerController)
 {
+	if (AttackerController == nullptr || AttackerController->PlayerState == nullptr) return;
+	if (VictimController == nullptr || VictimController->PlayerState == nullptr) return;
 	if (ElimmedCharacter)
 	{
-		ElimmedCharacter->Elim();
+		ElimmedCharacter->Elim(false);
 	}
 	//当玩家被击败，获取击杀玩家的控制器利用控制器获取PlayerState
 	AXBlasterPlayerState* AttackPlayerState = AttackerController ? Cast<AXBlasterPlayerState>(AttackerController->PlayerState) : nullptr;
@@ -85,8 +87,34 @@ void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlaste
 
 	if (AttackPlayerState && AttackPlayerState != VictimPlayerState && XBlasterGameState)
 	{
+		TArray<AXBlasterPlayerState*> PlayersCurrentlyIntheLead;
+		for (auto LeadPlayer : XBlasterGameState->TopScoringPlayers)
+		{
+			PlayersCurrentlyIntheLead.Add(LeadPlayer);
+		}
+
 		AttackPlayerState->AddToScore(1.f);
 		XBlasterGameState->UpdateTopScore(AttackPlayerState);
+		if (XBlasterGameState->TopScoringPlayers.Contains(AttackPlayerState))
+		{
+			AXCharacter* LeadCharacter = Cast<AXCharacter>(AttackPlayerState->GetPawn());
+			if (LeadCharacter)
+			{
+				LeadCharacter->MulticastGainerTheLead();
+			}
+		}
+
+		for (int32 i = 0; i < PlayersCurrentlyIntheLead.Num(); i++)
+		{
+			if (!XBlasterGameState->TopScoringPlayers.Contains(PlayersCurrentlyIntheLead[i]))
+			{
+				AXCharacter* LosCharacter = Cast<AXCharacter>(PlayersCurrentlyIntheLead[i]->GetPawn());
+				if (LosCharacter)
+				{
+					LosCharacter->MulticastLostTheLead();
+				}
+			}
+		}
 	}
 	if (VictimPlayerState)
 	{
@@ -109,5 +137,23 @@ void AXBlasterGameMode::RequestRespawn(AXCharacter* ElimmedCharacter, AControlle
 		int32 Selection = FMath::RandRange(0, PlayerStarts.Num() - 1);
 
 		RestartPlayerAtPlayerStart(ElimmedController, PlayerStarts[Selection]);
+	}
+}
+
+void AXBlasterGameMode::PlayerLeftGame(AXBlasterPlayerState* LeavingPlayerState)
+{
+	//TODO 向服务器上的玩家死亡函数，传入bLeftGame = true
+	//检查TopPlayer是否包含这个离开的角色
+	if (LeavingPlayerState == nullptr) return;
+	AXBlasterGameState* XBlasterGameState = GetGameState < AXBlasterGameState>();
+	if (XBlasterGameState && XBlasterGameState->TopScoringPlayers.Contains(LeavingPlayerState))
+	{
+		XBlasterGameState->TopScoringPlayers.Remove(LeavingPlayerState);
+	}
+	//设置bLeftGame为true然后不再重生
+	AXCharacter* CharacterLeaving = Cast<AXCharacter>(LeavingPlayerState->GetPawn());
+	if (CharacterLeaving)
+	{
+		CharacterLeaving->Elim(true);
 	}
 }

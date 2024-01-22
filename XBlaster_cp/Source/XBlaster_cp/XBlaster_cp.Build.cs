@@ -8,7 +8,7 @@ public class XBlaster_cp : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "OnlineSubsystemSteam", "OnlineSubsystem", "OnlineSubsystemNull","Niagara"});
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "OnlineSubsystemSteam", "OnlineSubsystem", "OnlineSubsystemNull","Niagara", "MutiplayerSessions" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

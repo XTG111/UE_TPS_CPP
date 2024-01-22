@@ -30,6 +30,8 @@ public:
 	virtual void PlayerEliminated(class AXCharacter* ElimmedCharacter, class AXBlasterPlayerController* VictimController, class AXBlasterPlayerController* AttackerController);
 	//重生角色
 	virtual void RequestRespawn(class AXCharacter* ElimmedCharacter, AController* ElimmedController);
+	//角色退出游戏
+	void PlayerLeftGame(class AXBlasterPlayerState* LeavingPlayerState);
 
 public:
 	//设置从DelayedStart中需要等待的时间，然后调用StartMatch()

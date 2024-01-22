@@ -14,7 +14,8 @@
 #include "XCharacter.generated.h"
 
 
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLeftGame);
+/*退出游戏的委托*/
 UCLASS()
 class XBLASTER_CP_API AXCharacter : public ACharacter, public IInteractWithCrosshairInterface
 {
@@ -62,11 +63,11 @@ public:
 
 
 	//仅在服务器上调用死亡响应
-	void Elim();
+	void Elim(bool bPlayerLeftGame);
 
 	//响应死亡
 	UFUNCTION(NetMulticast, Reliable)
-		void MulticastElim();
+		void MulticastElim(bool bPlayerLeftGame);
 
 	//初始化PlayerState,用来更新对应的HUD,需要Tick检测，因为游戏的第一帧不会初始化PlayerState所以无法用BeginPlay进行初始化；
 	//该函数将用于初始化任何无法在第一帧初始化的类
@@ -263,6 +264,18 @@ private:
 	UPROPERTY(VisibleAnywhere)
 		UStaticMeshComponent* AttachGrenade;
 
+	/*生成皇冠在领先的Actor
+	*/
+	UPROPERTY(EditAnywhere)
+		class UNiagaraSystem* CrownSystem;
+	UPROPERTY()
+		class UNiagaraComponent* CrownComp;
+
+	/*
+	* 退出游戏的处理
+	*/
+	bool bLeftGame = false;
+
 public:	
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
 		bool bUnderJump = false;
@@ -318,6 +331,21 @@ public:
 	bool IsLocallyReloading();
 
 	bool bFinishedSwap = false;
+
+	/*
+	* 角色退出游戏
+	*/
+	//通知服务器离开游戏
+	UFUNCTION(Server, Reliable)
+		void ServerLeaveGame();
+	FOnLeftGame OnLeftGame;
+
+	//显示领先者的皇冠到所有客户端
+	//使用两个MultiRPC是为了避免网络带宽，否则我们需要传入参数来控制是否显示
+	UFUNCTION(NetMulticast,Reliable)
+		void MulticastGainerTheLead();
+	UFUNCTION(NetMulticast, Reliable)
+		void MulticastLostTheLead();
 
 public:
 	//控制哪些操作将被禁用

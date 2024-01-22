@@ -3452,3 +3452,97 @@ void AWeaponParent::OnPingTooHigh(bool bPingTooHigh)
 2. 通过网络流量进行欺骗，通过修改发送给服务器的数据包
 3. Memory EDITING
 	内存地址上存储了子弹数和伤害的一些数据
+## UE验证
+可以在RPC的UFUNCTION中添加WITHValidation
+然后编写验证函数
+```c++
+bool ServerFire_Validate(){}
+```
+
+# 返回界面
+主要处理的是退出游戏是，需要销毁我们创立的链接，利用之前子系统中的OnDestroySession委托进行绑定回调函数实现断开链接
+需要注意的是，我们需要设置一个按键来显示这个UI，这个按键不能写在角色类中，因为角色类会首先被清除掉，所以需要在PlayerController中重写输入函数，然后将按键绑定当PlayerController中。
+
+# 离开游戏
+[image](https://img2.imgtp.com/2024/01/22/WCAd46IU.png)
+客户端离开游戏：
+1. 需要通知服务器该角色离开了游戏，那么就需要利用ServerRPC告诉服务器，然后服务器通过GameMode来设置玩家在服务器上的状态。还可以利用GameState来检查当前离开的玩家是不是排名第一的玩家。
+2. 处理玩家状态就是对处理死亡的函数增加一个参数用来判断当前玩家是不是离开了游戏，如果离开了就不会重生这个玩家，然后利用多播RPC将这个消息广播给其他玩家。然后当死亡的定时器结束快要重生时就检查这个参数来决定是否重生
+3. 返回主界面，销毁会话，需要传递信息到主界面的类中，可以利用多播委托来实现。在角色类中建立一个委托，然后在主界面类中建立回调函数绑定这个委托。
+[image](https://img2.imgtp.com/2024/01/22/k5LtKgoU.png)
+具体流程：
+1. 返回菜单类--点击返回按钮
+2. 返回菜单类--检查当前的请求actor是否有效
+3. 如果无效则重新启用按键
+4. 如果有效就调用角色类中的ServerRPC函数
+5. 角色类--调用ServerRPC函数将请求GameMode类里面的玩家离开游戏的函数
+6. GameMode类--玩家离开游戏函数将检查当前玩家是否在得分榜上，如果在那么移除他，之后将调用角色类中的死亡函数，传入参数true表示玩家离开游戏，不再重生
+7. 角色类--在玩家的多播RPC死亡函数中，如果上方传入的参数为true就会进行委托的广播
+8. 返回菜单类--绑定了委托的回调函数，当广播时，调用销毁链接的函数退出游戏
+
+# 生成皇冠在当前领先者的头上
+可以导出静态网格体为fbx然后在blender中修改，再导回
+在GameMode里面有设置击杀得分的功能，里面会更新玩家分数，并且GameState拥有得分最高的玩家名单统计，所以我们可以在更新玩家得分之前先统计一份旧的最高分玩家，然后在更新玩家之后检查GameState最新的名单中是否还有之前缓存的Actor如果有，那么可以继续保持，如果没有就调用角色类中的多播RPC来摧毁
+```c++
+//GameMode.cpp
+	TArray<AXBlasterPlayerState*> PlayersCurrentlyIntheLead;
+	for (auto LeadPlayer : XBlasterGameState->TopScoringPlayers)
+	{
+		PlayersCurrentlyIntheLead.Add(LeadPlayer);
+	}
+	AttackPlayerState->AddToScore(1.f);
+	XBlasterGameState->UpdateTopScore(AttackPlayerState);
+	if (XBlasterGameState->TopScoringPlayers.Contains(AttackPlayerState))
+	{
+		AXCharacter* LeadCharacter = Cast<AXCharacter>(AttackPlayerState->GetPawn());
+		if (LeadCharacter)
+		{
+			LeadCharacter->MulticastGainerTheLead();
+		}
+	}
+	for (int32 i = 0; i < PlayersCurrentlyIntheLead.Num(); i++)
+	{
+		if (!XBlasterGameState->TopScoringPlayers.Contains(PlayersCurrentlyIntheLead[i]))
+		{
+			AXCharacter* LosCharacter = Cast<AXCharacter>(PlayersCurrentlyIntheLead[i]->GetPawn());
+			if (LosCharacter)
+			{
+				LosCharacter->MulticastLostTheLead();
+			}
+		}
+	}
+```
+在角色类中需要在重生时查看自己是否是仍然是第一名，然后需要维护两个用于多播RPC的函数一个用来控制皇冠的显示，一个用来控制销毁
+```c++
+//Character.cpp
+//为了显示领先者的皇冠到所有客户端
+void AXCharacter::MulticastGainerTheLead_Implementation()
+{
+	if (CrownSystem == nullptr) return;
+	if (CrownComp == nullptr)
+	{
+		CrownComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+			CrownSystem,
+			GetCapsuleComponent(),
+			FName(),
+			GetActorLocation() + FVector(0.f, 0.f, 110.f),
+			GetActorRotation(),
+			EAttachLocation::KeepWorldPosition,
+			false
+		);
+	}
+	if (CrownComp)
+	{
+		CrownComp->Activate();
+	}
+
+}
+
+void AXCharacter::MulticastLostTheLead_Implementation()
+{
+	if (CrownComp)
+	{
+		CrownComp->DestroyComponent();
+	}
+}
+```

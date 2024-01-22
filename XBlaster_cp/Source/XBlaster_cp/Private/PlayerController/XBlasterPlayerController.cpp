@@ -17,11 +17,42 @@
 #include "GameState/XBlasterGameState.h"
 #include "XPlayerState/XBlasterPlayerState.h"
 #include "Components/Image.h"
+#include "HUD/ReturnToMainMenuWidget.h"
 
 void AXBlasterPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AXBlasterPlayerController, MatchState);
+}
+
+void AXBlasterPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	if (InputComponent == nullptr) return;
+
+	InputComponent->BindAction("Quit", IE_Pressed, this, &AXBlasterPlayerController::ShowReturnToMainMenu);
+}
+
+void AXBlasterPlayerController::ShowReturnToMainMenu()
+{
+	//TODO 展示退出界面
+	if (ReturnToMainMenuWidget == nullptr) return;
+	if (ReturnToMainMenu == nullptr)
+	{
+		ReturnToMainMenu = CreateWidget<UReturnToMainMenuWidget>(this, ReturnToMainMenuWidget);
+	}
+	if (ReturnToMainMenu)
+	{
+		bReturnToMainMenuOpen = !bReturnToMainMenuOpen;
+		if (bReturnToMainMenuOpen)
+		{
+			ReturnToMainMenu->MenuSet();
+		}
+		else
+		{
+			ReturnToMainMenu->MenuTearDown();
+		}
+	}
 }
 
 void AXBlasterPlayerController::BeginPlay()

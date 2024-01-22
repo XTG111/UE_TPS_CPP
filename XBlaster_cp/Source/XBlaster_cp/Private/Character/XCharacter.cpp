@@ -26,6 +26,9 @@
 #include "XBlaster_cp/XTypeHeadFile/WeaponTypes.h"
 #include "GameMode/XBlasterGameMode.h"
 #include "BlasterComponent/LagCompensationComponent.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "GameState/XBlasterGameState.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -291,6 +294,13 @@ void AXCharacter::PollInit()
 		{
 			XBlasterPlayerState->AddToScore(0.f);
 			XBlasterPlayerState->AddToDefeats(0);
+
+			//如果重生或者一开始角色就处于领先那么会生成皇冠
+			AXBlasterGameState* XBlasterGameState = Cast<AXBlasterGameState>(UGameplayStatics::GetGameState(this));
+			if (XBlasterGameState && XBlasterGameState->TopScoringPlayers.Contains(XBlasterPlayerState))
+			{
+				MulticastGainerTheLead();
+			}
 		}
 	}
 }
@@ -877,20 +887,20 @@ void AXCharacter::ReceivedDamage(AActor* DamageActor, float Damage, const UDamag
 }
 
 //处理在服务器上的变化
-void AXCharacter::Elim()
+void AXCharacter::Elim(bool bPlayerLeftGame)
 {
 	if (CombatComp)
 	{
 		DroporDestroyWeapon(CombatComp->EquippedWeapon);
 		DroporDestroyWeapon(CombatComp->SecondWeapon);
 	}
-	MulticastElim();
-	GetWorldTimerManager().SetTimer(ElimTimer, this, &AXCharacter::ElimTimerFinished, ElimDelay);
+	MulticastElim(bPlayerLeftGame);
 }
 
 //需要传给其他客户端的变化
-void AXCharacter::MulticastElim_Implementation()
+void AXCharacter::MulticastElim_Implementation(bool bPlayerLeftGame)
 {
+	bLeftGame = bPlayerLeftGame;
 	//当该Actor死亡时，调用控制器，设置其子弹数为空
 	if (XBlasterPlayerController)
 	{
@@ -951,6 +961,13 @@ void AXCharacter::MulticastElim_Implementation()
 	{
 		ShowSnipperScope(false);
 	}
+
+	if (CrownComp)
+	{
+		CrownComp->DestroyComponent();
+	}
+	//开启重生计时器
+	GetWorldTimerManager().SetTimer(ElimTimer, this, &AXCharacter::ElimTimerFinished, ElimDelay);
 }
 
 //重生
@@ -959,9 +976,15 @@ void AXCharacter::ElimTimerFinished()
 	//重生角色
 	AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
 
-	if (XBlasterGameMode)
+	//bLeftGame为真时，表示角色离开了游戏不再重生
+	if (XBlasterGameMode  && !bLeftGame)
 	{
 		XBlasterGameMode->RequestRespawn(this, Controller);
+	}
+	//当本地角色离开了游戏，开始广播这个状态，然后告知主界面
+	if (bLeftGame && IsLocallyControlled())
+	{
+		OnLeftGame.Broadcast();
 	}
 	GetWorldTimerManager().ClearTimer(ElimTimer);
 }
@@ -1017,4 +1040,48 @@ bool AXCharacter::IsLocallyReloading()
 {
 	if (CombatComp == nullptr) return false;
 	return CombatComp->bLocallyReloading;
+}
+
+//为了显示领先者的皇冠到所有客户端
+void AXCharacter::MulticastGainerTheLead_Implementation()
+{
+	if (CrownSystem == nullptr) return;
+	if (CrownComp == nullptr)
+	{
+		CrownComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
+			CrownSystem,
+			GetCapsuleComponent(),
+			FName(),
+			GetActorLocation() + FVector(0.f, 0.f, 110.f),
+			GetActorRotation(),
+			EAttachLocation::KeepWorldPosition,
+			false
+		);
+	}
+	if (CrownComp)
+	{
+		CrownComp->Activate();
+	}
+
+}
+
+void AXCharacter::MulticastLostTheLead_Implementation()
+{
+	if (CrownComp)
+	{
+		CrownComp->DestroyComponent();
+	}
+}
+
+/*
+* 退出游戏处理 _Implementation
+*/
+void AXCharacter::ServerLeaveGame_Implementation()
+{
+	AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
+	XBlasterPlayerState = XBlasterPlayerState == nullptr ? GetPlayerState<AXBlasterPlayerState>() : XBlasterPlayerState;
+	if (XBlasterGameMode && XBlasterPlayerState)
+	{
+		XBlasterGameMode->PlayerLeftGame(XBlasterPlayerState);
+	}
 }

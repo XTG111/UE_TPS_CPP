@@ -58,6 +58,10 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
+
+	//绑定退出按键
+	virtual void SetupInputComponent() override;
+
 	//计算所有需要的时间比如热身时间和游戏时间，并调用实际的绘制函数
 	void SetHUDTime();
 
@@ -104,6 +108,9 @@ protected:
 
 	//tick控制highping的播放
 	void PlayHighPingAnim(float DeltaTime);
+
+	//显示退出界面的UI
+	void ShowReturnToMainMenu();
 
 private:
 
@@ -170,9 +177,18 @@ private:
 	UFUNCTION(Server, Reliable)
 		void ServerReportPingStatus(bool bHighPing);
 
-
-
 	//ping的阈值
 	UPROPERTY(EditAnywhere)
 		float HighPingThreshold = 50.f;
+
+	/*退出界面的控制*/
+	UPROPERTY(EditAnywhere, Category = HUD)
+		TSubclassOf<class UUserWidget> ReturnToMainMenuWidget;
+
+	//退出界面UI的实例
+	UPROPERTY()
+		class UReturnToMainMenuWidget* ReturnToMainMenu;
+
+	//用来确定是否打开了这个UI
+	bool bReturnToMainMenuOpen = false;
 };
