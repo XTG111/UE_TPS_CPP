@@ -179,8 +179,11 @@ void UCombatComponent::ServerDropWeapon_Implementation()
 	}
 	if (SecondWeapon != nullptr)
 	{
+		EquippedWeapon = nullptr;
 		EquippedWeapon = SecondWeapon;
+		SecondWeapon->SetOwner(nullptr);
 		SecondWeapon = nullptr;
+		EquipPrimaryWeapon(EquippedWeapon);
 	}
 	if (EquippedWeapon == nullptr && CharacterEx)
 	{
@@ -353,7 +356,7 @@ void UCombatComponent::NewEquipWeapon()
 	Shape.SetSphere(30.0f);
 	bool bBlockingHit = GetWorld()->SweepMultiByObjectType(Hits, EyeLocation, End, FQuat::Identity, ObjectQueryParams, Shape);
 	FColor LineColor = bBlockingHit ? FColor::Green : FColor::Red;
-	for (FHitResult Hit : Hits) {
+	for (const FHitResult& Hit : Hits) {
 		AActor* HitActor = Hit.GetActor();
 		if (HitActor) {
 			if (HitActor->Implements<UFObjectInterface>()) {
@@ -532,6 +535,7 @@ void UCombatComponent::FinishingReloading()
 	bLocallyReloading = false;
 	if (CharacterEx->HasAuthority())
 	{
+		bCanFire = true;
 		CombatState = ECombatState::ECS_Unoccupied;
 		//在动画播放结束之后更新
 		UpdateAmmoAndCarriedAmmo();
@@ -651,6 +655,7 @@ void UCombatComponent::ControlFire(bool bPressed)
 			if (EquippedWeapon)
 			{
 				CrosshairShootingFactor = 0.75f;
+				CombatState = ECombatState::ECS_Unoccupied;
 				switch (EquippedWeapon->FireType)
 				{
 				case EFireType::EFT_Projectile:
@@ -824,6 +829,7 @@ void UCombatComponent::LocalShotGunFire(const TArray<FVector_NetQuantize>& Trace
 	if (CombatState == ECombatState::ECS_Reloading || CombatState == ECombatState::ECS_Unoccupied)
 	{
 		CharacterEx->PlayFireMontage(bUnderAiming);
+		bLocallyReloading = false;
 		if (bFired)
 		{
 			ShotGun->FireShotGun(TraceHitTargets);
@@ -832,8 +838,8 @@ void UCombatComponent::LocalShotGunFire(const TArray<FVector_NetQuantize>& Trace
 		{
 			ShotGun->WeaponMesh->Stop();
 		}
-		CombatState = ECombatState::ECS_Unoccupied;
 	}
+	CombatState = ECombatState::ECS_Unoccupied;
 }
 
 
@@ -1070,6 +1076,8 @@ void UCombatComponent::SwapWeapon()
 		AWeaponParent* TempWeapon = EquippedWeapon;
 		EquippedWeapon = SecondWeapon;
 		SecondWeapon = TempWeapon;
+		EquippedWeapon->SetOwner(CharacterEx);
+		SecondWeapon->SetOwner(CharacterEx);
 	}
 }
 
@@ -1100,6 +1108,14 @@ void UCombatComponent::ShotGunShellReload()
 	if (CharacterEx && CharacterEx->HasAuthority())
 	{
 		ShotGunUpdateAmmoAndCarriedAmmo();
+	}
+}
+
+void UCombatComponent::ShotGunNoFire()
+{
+	if (CharacterEx && (CharacterEx->IsLocallyControlled() || CharacterEx->HasAuthority()))
+	{
+		bCanFire = false;
 	}
 }
 

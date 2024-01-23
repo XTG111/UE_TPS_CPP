@@ -9,6 +9,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Weapon/WeaponParent.h"
 #include "XBlaster_cp/XTypeHeadFile/TurningInPlace.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 // Sets default values for this component's properties
 ULagCompensationComponent::ULagCompensationComponent()
@@ -277,7 +278,9 @@ void ULagCompensationComponent::EnableCharacterMeshCollision(AXCharacter* HitCha
 
 FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackage& Package, AXCharacter* HitCharacter, const FVector_NetQuantize& TraceStart, const FVector_NetQuantize& HitLocation)
 {
+	
 	if (HitCharacter == nullptr) return FServerSideRewindResult();
+	UE_LOG(LogTemp, Warning, TEXT("FireHit"));
 	//回退之前的Box参数
 	FFramePackage CurrentFrame;
 	//存储当前Box信息到CurrentFrame中
@@ -294,21 +297,28 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 	HeadBox->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
 
 	FHitResult ConfirmHitResult;
-	const FVector TraveEnd = TraceStart + (HitLocation - TraceStart) * 1.25f;
+	const FVector TraveEnd = TraceStart + (HitLocation - TraceStart) * 5.f;
 	UWorld* World = GetWorld();
 
 	if (World)
 	{
-		World->LineTraceSingleByChannel(
+		World->LineTraceSingleByObjectType(
 			ConfirmHitResult,
 			TraceStart,
 			TraveEnd,
 			ECC_HitBox
 		);
-
 		//如果击中了头部
 		if (ConfirmHitResult.bBlockingHit)
 		{
+			if (ConfirmHitResult.Component.IsValid())
+			{
+				UBoxComponent* Box = Cast<UBoxComponent>(ConfirmHitResult.Component);
+				if (Box)
+				{
+					DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent() * 10.f, FQuat(Box->GetComponentRotation()), FColor::Red, false, 5.f);
+				}
+			}
 			ResetBoxes(HitCharacter, CurrentFrame);
 			EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
 			return FServerSideRewindResult{ true,true };
@@ -325,15 +335,37 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 					HitBoxPair.Value->SetCollisionResponseToChannel(ECC_HitBox, ECollisionResponse::ECR_Block);
 				}
 			}
+			class TArray<AActor*> IgnoreA;
+			TArray<TEnumAsByte<EObjectTypeQuery> > ObjectTypes;
+			ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_HitBox));
 			//开始检测
-			World->LineTraceSingleByChannel(
-				ConfirmHitResult,
+			bool bHitReal = UKismetSystemLibrary::SphereTraceSingleForObjects(
+				World,
 				TraceStart,
 				TraveEnd,
-				ECC_HitBox
+				5.f,
+				ObjectTypes,
+				false,
+				IgnoreA,
+				EDrawDebugTrace::None,
+				ConfirmHitResult,
+				true,
+				FColor::Red,
+				FColor::Cyan,
+				5.f
 			);
-			if (ConfirmHitResult.bBlockingHit)
+			if (bHitReal)
 			{
+				UE_LOG(LogTemp, Warning, TEXT("Body"));
+				if (ConfirmHitResult.Component.IsValid())
+				{
+					UBoxComponent* Box = Cast<UBoxComponent>(ConfirmHitResult.Component);
+					if (Box)
+					{
+						DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent() * 10.f, FQuat(Box->GetComponentRotation()), FColor::Cyan, false, 5.f);
+					}
+				}
+
 				ResetBoxes(HitCharacter, CurrentFrame);
 				EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
 				return FServerSideRewindResult{ true,false };
@@ -389,7 +421,7 @@ FShotGunServerSideRewindResult ULagCompensationComponent::ShotGunConfirmHit(cons
 
 		if (World)
 		{
-			World->LineTraceSingleByChannel(
+			World->LineTraceSingleByObjectType(
 				ConfirmHitResult,
 				TraceStart,
 				TraveEnd,
@@ -433,12 +465,31 @@ FShotGunServerSideRewindResult ULagCompensationComponent::ShotGunConfirmHit(cons
 
 		if (World)
 		{
-			World->LineTraceSingleByChannel(
-				ConfirmHitResult,
+			class TArray<AActor*> IgnoreA;
+			TArray<TEnumAsByte<EObjectTypeQuery> > ObjectTypes;
+			ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_HitBox));
+			//开始检测
+			bool bHitReal = UKismetSystemLibrary::SphereTraceSingleForObjects(
+				World,
 				TraceStart,
 				TraveEnd,
-				ECC_HitBox
+				5.f,
+				ObjectTypes,
+				false,
+				IgnoreA,
+				EDrawDebugTrace::None,
+				ConfirmHitResult,
+				true,
+				FColor::Red,
+				FColor::Cyan,
+				5.f
 			);
+			//World->LineTraceSingleByObjectType(
+			//	ConfirmHitResult,
+			//	TraceStart,
+			//	TraveEnd,
+			//	ECC_HitBox
+			//);
 			AXCharacter* HitCharacter = Cast<AXCharacter>(ConfirmHitResult.GetActor());
 			if (HitCharacter)
 			{
@@ -527,14 +578,7 @@ FServerSideRewindResult ULagCompensationComponent::ProjectileConfirmHit(const FF
 		UGameplayStatics::PredictProjectilePath(this, PathParams, PathResult);
 		if (PathResult.HitResult.bBlockingHit)
 		{
-			//if (PathResult.HitResult.Component.IsValid())
-			//{
-			//	UBoxComponent* Box = Cast<UBoxComponent>(PathResult.HitResult.Component);
-			//	if (Box)
-			//	{
-			//		DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent(), FQuat(Box->GetComponentRotation()), FColor::Cyan, false, 5.f);
-			//	}
-			//}
+
 			ResetBoxes(HitCharacter, CurrentFrame);
 			EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
 			return FServerSideRewindResult{ true,false };

@@ -170,7 +170,7 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 		//如果在客户端上
 		if (!HasAuthority() && bUseServerSideRewide)
 		{
-			XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+			XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(OwnerPawn) : XCharacter;
 			XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(InstigatorController) : XBlasterPlayerController;
 			//只会在本地传递这个RPC，这是因为我们的开火功能并没有写在服务器上，所有客户端都会响应，而伤害计算只能通过本地的actor
 			if (XCharacter && XBlasterPlayerController && XCharacter->GetLagCompensationComp() && XCharacter->IsLocallyControlled())

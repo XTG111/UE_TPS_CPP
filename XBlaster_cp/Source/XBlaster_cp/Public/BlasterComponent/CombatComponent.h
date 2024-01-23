@@ -45,6 +45,8 @@ public:
 	//动画通知调用统计霰弹枪此时的子弹数
 	UFUNCTION(BlueprintCallable)
 		void ShotGunShellReload();
+	UFUNCTION(BlueprintCallable)
+		void ShotGunNoFire();
 
 	//动画通知调用该函数，执行投掷结束后状态的切换
 	UFUNCTION(BlueprintCallable)
@@ -258,6 +260,7 @@ private:
 	/*默认武器*/
 	UPROPERTY(EditAnywhere)
 		TSubclassOf<AWeaponParent> DefaultWeaponClass;
+
 
 	//对于装备武器的一些功能重写
 protected:

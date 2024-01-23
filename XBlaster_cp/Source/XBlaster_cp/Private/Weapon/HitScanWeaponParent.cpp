@@ -53,7 +53,7 @@ void AHitScanWeaponParent::Fire(const FVector& HitTarget)
 			//如果只是客户端上的Actor开枪，且开启了ServeRewide
 			if(!HasAuthority() && bUseServerSideRewide)
 			{
-				XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
+				XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(OwnerPawn) : XCharacter;
 				XBlasterPlayerController = XBlasterPlayerController == nullptr ? Cast<AXBlasterPlayerController>(InstigatorController) : XBlasterPlayerController;
 				if (XCharacter && XBlasterPlayerController && XCharacter->GetLagCompensationComp() && XCharacter->IsLocallyControlled())
 				{
