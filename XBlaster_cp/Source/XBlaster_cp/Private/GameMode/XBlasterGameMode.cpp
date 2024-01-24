@@ -120,6 +120,16 @@ void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlaste
 	{
 		VictimPlayerState->AddToDefeats(1);
 	}
+
+	//遍历所有的玩家控制器，然后调用自己的BroadcastElimAnnouncement函数
+	for (FConstPlayerControllerIterator it = GetWorld()->GetPlayerControllerIterator(); it; it++)
+	{
+		AXBlasterPlayerController* XBlasterPlayerController = Cast<AXBlasterPlayerController>(*it);
+		if (XBlasterPlayerController && AttackPlayerState && VictimPlayerState)
+		{
+			XBlasterPlayerController->BroadcastElim(AttackPlayerState, VictimPlayerState);
+		}
+	}
 }
 
 void AXBlasterGameMode::RequestRespawn(AXCharacter* ElimmedCharacter, AController* ElimmedController)

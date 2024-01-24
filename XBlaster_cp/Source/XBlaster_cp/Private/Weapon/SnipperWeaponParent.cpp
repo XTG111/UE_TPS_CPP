@@ -22,7 +22,8 @@ void ASnipperWeaponParent::Fire(const FVector& HitTarget)
 	AController* InstigatorController = OwnerPawn->GetController();
 
 	AXCharacter* OwnerCharacter = Cast<AXCharacter>(OwnerPawn);
-	bAiming = OwnerCharacter->GetCombatComp()->GetbAiming();
+	bUnderAiming = OwnerCharacter->GetCombatComp()->GetbAiming();
+	bUseScatter = !bUnderAiming;
 
 	//获取枪口位置
 	const USkeletalMeshSocket* MuzzleFlashSocket = WeaponMesh->GetSocketByName("MuzzleFlash");
@@ -46,10 +47,14 @@ void ASnipperWeaponParent::Fire(const FVector& HitTarget)
 			//如果是服务器上的权威Actor开枪
 			if (HasAuthority() && bCauseAuthDamage)
 			{
+				//是否击中头部
+				bool bHeadShot = FireHit.BoneName.ToString() == FString("head");
+
+				const float DamageToCause = bHeadShot ? HeadShotDamage : Damage;
 				//伤害判定在服务器上进行
 				UGameplayStatics::ApplyDamage(
 					HitCharacter,
-					Damage,
+					DamageToCause,
 					InstigatorController,
 					this,
 					UDamageType::StaticClass()
@@ -101,7 +106,9 @@ void ASnipperWeaponParent::SnipperTraceHit(const FVector& TraceStart, const FVec
 {
 	UWorld* World = GetWorld();
 	//是否开启散布，开启了，就调用上面那个随机计算结果的函数，不开启就是终点就是准星位置
-	FVector End =  !bAiming ? TraceEndWithScatter(HitTarget) : TraceStart + (HitTarget - TraceStart) * 1.25f;
+	FVector End =  bUseScatter ? TraceEndWithScatter(HitTarget) : TraceStart + (HitTarget - TraceStart) * 1.25f;
+	//FVector End = TraceStart + (HitTarget - TraceStart) * 1.25f;
+	
 	if (World)
 	{
 		World->LineTraceSingleByChannel(
@@ -114,6 +121,10 @@ void ASnipperWeaponParent::SnipperTraceHit(const FVector& TraceStart, const FVec
 		if (OutHit.bBlockingHit)
 		{
 			BeamEnd = OutHit.ImpactPoint;
+		}
+		else
+		{
+			OutHit.ImpactPoint = End;
 		}
 		if (BeamParticles)
 		{

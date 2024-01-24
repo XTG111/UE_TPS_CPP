@@ -48,8 +48,10 @@ public:
 	UPROPERTY(EditAnywhere)
 		class USoundCue* ImpactSound;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(EditAnywhere)
 		float DamageBaseFloat = 10.f;
+	UPROPERTY(EditAnywhere)
+		float HeadShotDamage = 20.f;
 
 	//NiagaraSystem,用于生成Niagara
 	UPROPERTY(EditAnywhere)

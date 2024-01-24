@@ -38,24 +38,6 @@ void AProjectileBulletActor::PostEditChangeProperty(FPropertyChangedEvent& Event
 void AProjectileBulletActor::BeginPlay()
 {
 	Super::BeginPlay();
-
-	//FPredictProjectilePathParams PathParams;
-	//PathParams.bTraceWithChannel = true;
-	//PathParams.bTraceWithCollision = true;
-	//PathParams.DrawDebugTime = 5.f;
-	//PathParams.DrawDebugType = EDrawDebugTrace::ForDuration;
-	//PathParams.LaunchVelocity = GetActorForwardVector() * InitialSpeedForBullet;
-	//PathParams.MaxSimTime = 4.f; //飞行时间
-	//PathParams.ProjectileRadius = 5.f;//绘制半径
-	//PathParams.SimFrequency = 30.f;
-	//PathParams.StartLocation = GetActorLocation(); //预测起点
-	//PathParams.TraceChannel = ECollisionChannel::ECC_Visibility;
-	//PathParams.ActorsToIgnore.Add(this);
-
-	//FPredictProjectilePathResult PathResult;
-
-	////预测轨迹
-	//UGameplayStatics::PredictProjectilePath(this, PathParams, PathResult);
 }
 
 void AProjectileBulletActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit)
@@ -70,8 +52,11 @@ void AProjectileBulletActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherAc
 			//bool bCauseAuthDamage = !bUseServerSideRewind || OwnerCharacter->IsLocallyControlled();
 			if (OwnerCharacter->HasAuthority() && !bUseServerSideRewind)
 			{
+				bool bHeadShot = Hit.BoneName.ToString() == FString("head");
+
+				const float DamageToCause = bHeadShot ? HeadShotDamage : DamageBaseFloat;
 				//应用伤害函数,将自动调用伤害设置
-				UGameplayStatics::ApplyDamage(OtherActor, DamageBaseFloat, OwnerController, this, UDamageType::StaticClass());
+				UGameplayStatics::ApplyDamage(OtherActor, DamageToCause, OwnerController, this, UDamageType::StaticClass());
 				//由于父类的OnHit会销毁子弹，所以最后Super
 				Super::OnHit(HitComp, OtherActor, OtherComp, NormalImpilse, Hit);
 				return;

@@ -41,10 +41,14 @@ void AHitScanWeaponParent::Fire(const FVector& HitTarget)
 			//如果是服务器上的权威Actor开枪
 			if (HasAuthority() && bCauseAuthDamage)
 			{
+				//是否击中头部
+				bool bHeadShot = FireHit.BoneName.ToString() == FString("head");
+
+				const float DamageToCause = bHeadShot ? HeadShotDamage : Damage;
 				//伤害判定在服务器上进行
 				UGameplayStatics::ApplyDamage(
 					HitCharacter,
-					Damage,
+					DamageToCause,
 					InstigatorController,
 					this,
 					UDamageType::StaticClass()
@@ -132,6 +136,10 @@ void AHitScanWeaponParent::WeaponTraceHit(const FVector& TraceStart, const FVect
 		if (OutHit.bBlockingHit)
 		{
 			BeamEnd = OutHit.ImpactPoint;
+		}
+		else
+		{
+			OutHit.ImpactPoint = End;
 		}
 
 		//DrawDebugSphere(GetWorld(), BeamEnd, 16.f, 12, FColor::Orange, true);

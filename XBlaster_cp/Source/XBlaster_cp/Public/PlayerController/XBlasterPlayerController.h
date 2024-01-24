@@ -55,6 +55,9 @@ public:
 	//用来广播Ping过高
 	FHighPingDelegate HighPingDelegate;
 
+	//击杀文本广播
+	void BroadcastElim(APlayerState* Attacker,APlayerState* Victim);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
@@ -111,6 +114,10 @@ protected:
 
 	//显示退出界面的UI
 	void ShowReturnToMainMenu();
+
+	//Client RPC
+	UFUNCTION(Client, Reliable)
+		void ClientElimAnnouncement(APlayerState* Attacker, APlayerState* Victim);
 
 private:
 

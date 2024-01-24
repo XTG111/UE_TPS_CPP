@@ -201,9 +201,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
 		bool bUseScatter = false;
 
-	//线扫描武器伤害
-	UPROPERTY(EditAnywhere, Category = "HitScan_Damage")
+	//武器伤害
+	UPROPERTY(EditAnywhere, Category = "Damage")
 		float Damage = 20.f;
+
+	UPROPERTY(EditAnywhere, Category = "Damage")
+		float HeadShotDamage = 40.f;
 
 protected:
 	//重叠事件响应回调函数,蓝图中的OnBeginOverlap节点

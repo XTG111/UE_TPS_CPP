@@ -62,8 +62,8 @@ void UXPropertyComponent::ReceivedDamage(float Damage, AController* InstigatorCo
 		}
 		else
 		{
-			Shield = 0.f;
 			DamageToHealth = FMath::Clamp(DamageToHealth - Shield, 0.f, Damage);
+			Shield = 0.f;
 		}
 	}
 

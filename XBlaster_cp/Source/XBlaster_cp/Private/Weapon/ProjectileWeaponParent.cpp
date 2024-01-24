@@ -39,8 +39,9 @@ void AProjectileWeaponParent::Fire(const FVector& HitTarget)
 				{
 					SpawnedProjectile = World->SpawnActor<AProjectileActor>(ProjectileClass,SocketTransform.GetLocation(),TargetRotation,SpawnParams);
 					SpawnedProjectile->bUseServerSideRewind = false;
-					//将武器的伤害传给可复制的子弹，这样才能将伤害带到服务器上
+					//将武器的伤害传给可复制的子弹
 					SpawnedProjectile->DamageBaseFloat = Damage;
+					SpawnedProjectile->HeadShotDamage = HeadShotDamage;
 				}
 				//Server not LocallyControlled - 生成不可复制且具有SSR的子弹
 				else
@@ -61,6 +62,7 @@ void AProjectileWeaponParent::Fire(const FVector& HitTarget)
 					SpawnedProjectile->InitialVelocity = SpawnedProjectile->GetActorForwardVector() * SpawnedProjectile->InitialSpeedForBullet;
 					//同样对于伤害也需要设置在本地客户端上
 					SpawnedProjectile->DamageBaseFloat = Damage;
+					SpawnedProjectile->HeadShotDamage = HeadShotDamage;
 				}
 				//Client not LocallyControled - 生成不可复制且不具有SSR的子弹
 				else

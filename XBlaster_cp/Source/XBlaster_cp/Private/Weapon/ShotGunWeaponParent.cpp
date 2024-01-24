@@ -107,6 +107,7 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 		const FVector Start = SockertTransform.GetLocation();
 		//map to hit character to number of times hit
 		TMap<AXCharacter*, uint32> HitMap;
+		TMap<AXCharacter*, uint32> HeadShotHitMap;
 		for (auto HitTarget : HitTargets)
 		{
 			FHitResult FireHit;
@@ -115,6 +116,7 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 			AXCharacter* HitCharacter = Cast<AXCharacter>(FireHit.GetActor());
 			if (HitCharacter)
 			{
+				const bool bHeadShot = FireHit.BoneName.ToString() == FString("head");
 				//如果击中那么Hits数增加
 				if (HitMap.Contains(HitCharacter))
 				{
@@ -123,6 +125,19 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 				else
 				{
 					HitMap.Emplace(HitCharacter, 1);
+				}
+
+				//更新是否击中头部
+				if (bHeadShot)
+				{
+					if (HeadShotHitMap.Contains(HitCharacter))
+					{
+						HeadShotHitMap[HitCharacter]++;
+					}
+					else
+					{
+						HeadShotHitMap.Emplace(HitCharacter, 1);
+					}
 				}
 			}
 			//射线检测武器击中后产生粒子特效
@@ -147,19 +162,19 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 				);
 			}
 		}
-		TArray<AXCharacter*> HitCharacters;
-		for (auto HitPair : HitMap)
+		//maps character hit to total damage
+		TMap<AXCharacter*, uint32> DamageMap = GetDamageMap(HitMap, HeadShotHitMap);
+		for (auto DamagePair : DamageMap)
 		{
-			if (HitPair.Key && InstigatorController )
+			if (DamagePair.Key && InstigatorController)
 			{
-				HitCharacters.Add(HitPair.Key);
 				//如果是在服务器上的开火那么直接调用
 				bool bCauseAuthDamage = !bUseServerSideRewide || OwnerPawn->IsLocallyControlled();
-				if(HasAuthority() && bCauseAuthDamage)
+				if (HasAuthority() && bCauseAuthDamage)
 				{
 					UGameplayStatics::ApplyDamage(
-						HitPair.Key, //character that was hit
-						Damage * HitPair.Value,//multiply damage bu number of times
+						DamagePair.Key, //character that was hit
+						DamagePair.Value,//multiply damage by number of times
 						InstigatorController,
 						this,
 						UDamageType::StaticClass()
@@ -167,6 +182,7 @@ void AShotGunWeaponParent::FireShotGun(const TArray<FVector_NetQuantize>& HitTar
 				}
 			}
 		}
+
 		//如果在客户端上
 		if (!HasAuthority() && bUseServerSideRewide)
 		{
@@ -211,4 +227,34 @@ void AShotGunWeaponParent::ShotGunTraceEndwithScatter(const FVector& HitTarget, 
 		//DrawDebugLine(GetWorld(), TraceStart, FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size()), FColor::Cyan, true);
 		HitTargets.Add(FVector(TraceStart + ToEndLoc * 80000.f / ToEndLoc.Size()));
 	}
+}
+
+TMap<AXCharacter*, uint32> AShotGunWeaponParent::GetDamageMap(TMap<AXCharacter*, uint32>& HitMap, TMap<AXCharacter*, uint32>& HeadShotHitMap)
+{
+	TMap<AXCharacter*, uint32> DamageMap;
+	for (auto HitPair : HitMap)
+	{
+		if (HitPair.Key)
+		{
+			DamageMap.Emplace(HitPair.Key, HitPair.Value * Damage);
+			HitCharacters.AddUnique(HitPair.Key);
+		}
+	}
+	for (auto HeadShotHitPair : HeadShotHitMap)
+	{
+		if (HeadShotHitPair.Key)
+		{
+			if (DamageMap.Contains(HeadShotHitPair.Key))
+			{
+				DamageMap[HeadShotHitPair.Key] += HeadShotHitPair.Value * HeadShotDamage;
+			}
+			else
+			{
+				DamageMap.Emplace(HeadShotHitPair.Key, HeadShotHitPair.Value * HeadShotDamage);
+			}
+			HitCharacters.AddUnique(HeadShotHitPair.Key);
+		}
+	}
+
+	return DamageMap;
 }

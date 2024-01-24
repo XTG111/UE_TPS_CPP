@@ -20,6 +20,6 @@ protected:
 	void SnipperTraceHit(const FVector& TraceStart, const FVector& HitTarget, FHitResult& OutHit);
 	//
 	UPROPERTY(VisibleAnywhere)
-		bool bAiming;
+		bool bUnderAiming;
 	
 };

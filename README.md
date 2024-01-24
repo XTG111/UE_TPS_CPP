@@ -3551,3 +3551,29 @@ void AXCharacter::MulticastLostTheLead_Implementation()
 1. Lag服务器倒带检测在客户端上无法精确检测到，所以使用了UKis...的API，利用球形检测
 2. 当我们丢枪后，如果有第二把武器，会自动将第二把武器依附到手上，但是目前在其他客户端包括服务器上没有这个效果，所以需要利用serverRPC将武器之间的attach放在服务器上也进行一次，这样才能广播到其他客户端.
 3. 霰弹枪在换弹动画的过程中可以射击，但射击之后战斗状态会锁住，不能开枪不能换弹，是由于我们进行了客户端的预测，对于本地的霰弹枪换弹并攻击，我们应该设置一个Bool变量来控制本地换弹的开关，一般对于其他武器我们都是在换弹过程中不会修改这个值，但是对于霰弹枪我们需要设置这个值为false，这样才能使得我们可以在换弹时开枪。
+
+# 死亡通知， player1 kill player2
+Widget->HUD->PlayerController->GameMode
+
+## 老消息向上滚动
+对于有参数的定时器回调函数，必须使用委托来进行操作
+获取UI中画布的参数需要使用到两个库,然后我们就可以通过调整画布参数来控制画布的位置了
+```c++
+#include "Components/CanvasPanelSlot.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+
+if (msg && msg->ElimAnnoceBox)
+{
+	UCanvasPanelSlot* CanvasSlot = UWidgetLayoutLibrary::SlotAsCanvasSlot(msg->ElimAnnoceBox);
+	if(CanvasSlot)
+	{
+		FVector2D Position = CanvasSlot->GetPosition();
+		FVector2D NewPosition(CanvasSlot->GetPosition().X, Position.Y - CanvasSlot->GetSize().Y);
+		CanvasSlot->SetPosition(NewPosition);
+	}
+		
+}
+```
+
+# 伤害区分
+通过检测击中的骨骼区分击中的部位

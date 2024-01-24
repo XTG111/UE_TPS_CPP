@@ -624,3 +624,45 @@ void AXBlasterPlayerController::SetHUDGrenadeAmount(int32 GrenadeAmount)
 	}
 }
 
+void AXBlasterPlayerController::BroadcastElim(APlayerState* Attacker, APlayerState* Victim)
+{
+	ClientElimAnnouncement(Attacker, Victim);
+}
+
+//ClientRPC
+void AXBlasterPlayerController::ClientElimAnnouncement_Implementation(APlayerState* Attacker, APlayerState* Victim)
+{
+	APlayerState* SelfState = GetPlayerState<APlayerState>();
+
+	if (Attacker && Victim && SelfState)
+	{
+		XBlasterHUD = XBlasterHUD == nullptr ? Cast<AXBlasterHUD>(GetHUD()) : XBlasterHUD;
+		if (XBlasterHUD)
+		{
+			if (Attacker == SelfState && Victim != SelfState)
+			{
+				XBlasterHUD->AddElimAnnouncement("You", Victim->GetPlayerName());
+				return;
+			}
+			else if (Attacker != SelfState && Victim == SelfState)
+			{
+				XBlasterHUD->AddElimAnnouncement(Attacker->GetPlayerName(), "You");
+				return;
+			}
+			else if (Attacker == SelfState && Victim == SelfState)
+			{
+				XBlasterHUD->AddElimAnnouncement("You", "You");
+				return;
+			}
+			else if (Attacker == Victim && Victim != SelfState)
+			{
+				XBlasterHUD->AddElimAnnouncement(Attacker->GetPlayerName(), "Self");
+				return;
+			}
+			else
+			{
+				XBlasterHUD->AddElimAnnouncement(Attacker->GetPlayerName(), Victim->GetPlayerName());
+			}
+		}
+	}
+}

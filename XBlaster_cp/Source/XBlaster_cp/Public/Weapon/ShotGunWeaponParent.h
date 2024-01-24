@@ -22,9 +22,15 @@ public:
 	/*霰弹枪的命中点统计传播
 	*/
 	void ShotGunTraceEndwithScatter(const FVector& HitTarget, TArray<FVector_NetQuantize>& HitTargets);
+	//统计被击中的角色
+	UPROPERTY()
+		TArray<AXCharacter*> HitCharacters;
 private:
 	//霰弹枪子弹数
 	UPROPERTY(EditAnywhere,Category = "Weapon Scatter")
 		uint32 NumberOfPellets = 10;
+
+	//统计击中头部和身体所造成的伤害
+	TMap<AXCharacter*, uint32> GetDamageMap(TMap<AXCharacter*, uint32>& HitMap, TMap<AXCharacter*, uint32>& HeadShotHitMap);
 	
 };
