@@ -32,6 +32,8 @@ public:
 	virtual void RequestRespawn(class AXCharacter* ElimmedCharacter, AController* ElimmedController);
 	//角色退出游戏
 	void PlayerLeftGame(class AXBlasterPlayerState* LeavingPlayerState);
+	//计算伤害 友伤
+	virtual float CalculateDamage(AController* Attacker,AController* Vicitim, float BaseDamage);
 
 public:
 	//设置从DelayedStart中需要等待的时间，然后调用StartMatch()
@@ -48,6 +50,9 @@ public:
 	//CoolDown Time
 	UPROPERTY(EditDefaultsOnly)
 		float CoolDownTime = 10.0f;
+
+	//控制是否显示队伍UI
+	bool bTeamsMatch = false;
 
 protected:
 	virtual void BeginPlay() override;

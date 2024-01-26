@@ -79,6 +79,9 @@ private:
 	UPROPERTY()
 		class AXCharacter* XCharacter;
 
+	UPROPERTY()
+		class AXBlasterGameMode* XBlasterGameMode;
+
 	//÷Œ¡∆Buff
 	bool bHealing = false;
 	float Healingrate = 0.f;

@@ -42,4 +42,12 @@ public:
 	//Transient:没有序列化到磁盘
 	UPROPERTY(meta = (BindWidgetAnim), Transient)
 		UWidgetAnimation* HighPingAnim;
+
+	//队伍分数显示
+	UPROPERTY(meta = (BindWidget))
+		UTextBlock* BlueTeamScore;
+	UPROPERTY(meta = (BindWidget))
+		UTextBlock* RedTeamScore;
+	UPROPERTY(meta = (BindWidget))
+		UTextBlock* ScoreSpacetext;
 };

@@ -92,7 +92,7 @@ AXCharacter::AXCharacter()
 	//GrenadeSocket
 	AttachGrenade->SetupAttachment(GetMesh(), FName("GrenadeSocket"));
 	AttachGrenade->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	AttachGrenade->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	
 
 	/*构造包围盒Box 到 对应的骨骼上*/
 	headbox = CreateDefaultSubobject<UBoxComponent>(TEXT("HeadBox"));
@@ -221,6 +221,43 @@ void AXCharacter::OnRep_ReplicatedMovement()
 	TimeSinceLastMovementReplication = 0;
 }
 
+void AXCharacter::SetColorByTeam(ETeam team)
+{
+	if(GetMesh())
+	{
+		switch (team)
+		{
+		case ETeam::ET_RedTeam:
+			if (RedDissolveMatInst)
+			{
+				GetMesh()->SetMaterial(0, RedMatInst);
+				//设置没有团队时的溶解材质
+				DissolveMaterialInstance = RedDissolveMatInst;
+			}
+			break;
+		case ETeam::ET_BlueTeam:
+			if (BlueDissolveMatInst)
+			{
+				GetMesh()->SetMaterial(0, BlueMatInst);
+				//设置没有团队时的溶解材质
+				DissolveMaterialInstance = BlueDissolveMatInst;
+			}
+			break;
+		case ETeam::ET_NoTeam:
+			if(OriginalMatInst && BlueDissolveMatInst)
+			{
+				GetMesh()->SetMaterial(0, OriginalMatInst);
+				//设置没有团队时的溶解材质
+				DissolveMaterialInstance = BlueDissolveMatInst;
+			}
+			break;
+		case ETeam::ET_MAX:
+			break;
+		}
+	}
+
+}
+
 // Called when the game starts or when spawned
 void AXCharacter::BeginPlay()
 {
@@ -294,7 +331,8 @@ void AXCharacter::PollInit()
 		{
 			XBlasterPlayerState->AddToScore(0.f);
 			XBlasterPlayerState->AddToDefeats(0);
-
+			//设置队伍颜色区分
+			SetColorByTeam(XBlasterPlayerState->GetTeam());
 			//如果重生或者一开始角色就处于领先那么会生成皇冠
 			AXBlasterGameState* XBlasterGameState = Cast<AXBlasterGameState>(UGameplayStatics::GetGameState(this));
 			if (XBlasterGameState && XBlasterGameState->TopScoringPlayers.Contains(XBlasterPlayerState))
@@ -846,6 +884,10 @@ void AXCharacter::HideCameraIfCharacterClose()
 		{
 			CombatComp->EquippedWeapon->WeaponMesh->bOwnerNoSee = true;
 		}
+		if (CombatComp && CombatComp->SecondWeapon && CombatComp->SecondWeapon->WeaponMesh)
+		{
+			CombatComp->SecondWeapon->WeaponMesh->bOwnerNoSee = true;
+		}
 	}
 	else
 	{
@@ -853,6 +895,10 @@ void AXCharacter::HideCameraIfCharacterClose()
 		if (CombatComp && CombatComp->EquippedWeapon && CombatComp->EquippedWeapon->WeaponMesh)
 		{
 			CombatComp->EquippedWeapon->WeaponMesh->bOwnerNoSee = false;
+		}
+		if (CombatComp && CombatComp->SecondWeapon && CombatComp->SecondWeapon->WeaponMesh)
+		{
+			CombatComp->SecondWeapon->WeaponMesh->bOwnerNoSee = false;
 		}
 	}
 
@@ -939,6 +985,7 @@ void AXCharacter::MulticastElim_Implementation(bool bPlayerLeftGame)
 	//禁用碰撞
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	AttachGrenade->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	//ElimBot
 	if (ElimBotEffect)
@@ -974,7 +1021,7 @@ void AXCharacter::MulticastElim_Implementation(bool bPlayerLeftGame)
 void AXCharacter::ElimTimerFinished()
 {
 	//重生角色
-	AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
+	XBlasterGameMode = XBlasterGameMode == nullptr ? GetWorld()->GetAuthGameMode<AXBlasterGameMode>() : XBlasterGameMode;
 
 	//bLeftGame为真时，表示角色离开了游戏不再重生
 	if (XBlasterGameMode  && !bLeftGame)
@@ -999,7 +1046,7 @@ void AXCharacter::Destroyed()
 	}
 
 	//获取当前比赛状态
-	AXBlasterGameMode* XBlasterGameMode = Cast<AXBlasterGameMode>(UGameplayStatics::GetGameMode(this));
+	XBlasterGameMode = XBlasterGameMode == nullptr ? GetWorld()->GetAuthGameMode<AXBlasterGameMode>() : XBlasterGameMode;
 	bool bMatchNotInProgress = XBlasterGameMode && XBlasterGameMode->GetMatchState() != MatchState::InProgress;
 	if (CombatComp && CombatComp->EquippedWeapon && bMatchNotInProgress)
 	{
@@ -1050,7 +1097,7 @@ void AXCharacter::MulticastGainerTheLead_Implementation()
 	{
 		CrownComp = UNiagaraFunctionLibrary::SpawnSystemAttached(
 			CrownSystem,
-			GetCapsuleComponent(),
+			GetMesh(),
 			FName(),
 			GetActorLocation() + FVector(0.f, 0.f, 110.f),
 			GetActorRotation(),
@@ -1078,10 +1125,16 @@ void AXCharacter::MulticastLostTheLead_Implementation()
 */
 void AXCharacter::ServerLeaveGame_Implementation()
 {
-	AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
+	XBlasterGameMode = XBlasterGameMode == nullptr ? GetWorld()->GetAuthGameMode<AXBlasterGameMode>() : XBlasterGameMode;
 	XBlasterPlayerState = XBlasterPlayerState == nullptr ? GetPlayerState<AXBlasterPlayerState>() : XBlasterPlayerState;
 	if (XBlasterGameMode && XBlasterPlayerState)
 	{
 		XBlasterGameMode->PlayerLeftGame(XBlasterPlayerState);
 	}
+}
+
+bool AXCharacter::IsHoldingTheFlag() const
+{
+	if (CombatComp == nullptr) return false;
+	return CombatComp->bHoldingTheFlag;
 }

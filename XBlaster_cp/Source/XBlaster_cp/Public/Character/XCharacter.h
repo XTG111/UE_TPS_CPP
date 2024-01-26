@@ -11,6 +11,7 @@
 #include "Interfaces/InteractWithCrosshairInterface.h"
 #include "Components/TimelineComponent.h"
 #include "XBlaster_cp/XTypeHeadFile/CombatState.h"
+#include "XBlaster_cp/XTypeHeadFile/TeamState.h"
 #include "XCharacter.generated.h"
 
 
@@ -76,6 +77,9 @@ public:
 	//狙击枪开镜动画
 	UFUNCTION(BlueprintImplementableEvent)
 		void ShowSnipperScope(bool bShowScope);
+
+	//根据队伍修改颜色
+	void SetColorByTeam(ETeam team);
 
 protected:
 	// Called when the game starts or when spawned
@@ -226,7 +230,7 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = Elim)
 		UMaterialInstanceDynamic* DynamicDissolveMaterialInstance;
 	//静态材质用于在蓝图中设置，是角色本身的材质实例 set on the BP,use for set the dynamic Material
-	UPROPERTY(EditAnywhere, Category = Elim)
+	UPROPERTY(VisibleAnywhere, Category = Elim)
 		UMaterialInstance* DissolveMaterialInstance;
 //时间轴
 // 
@@ -246,6 +250,24 @@ private:
 	//开始溶解
 	void StartDissolve();
 
+
+	/*
+	* Team Colors
+	*/
+	//没有Team时的颜色
+	UPROPERTY(EditAnywhere, Category = NoTeamColor)
+		UMaterialInstance* OriginalMatInst;
+
+	UPROPERTY(EditAnywhere, Category = TeamColors_Elim)
+		UMaterialInstance* RedDissolveMatInst;
+	UPROPERTY(EditAnywhere, Category = TeamColors_Elim)
+		UMaterialInstance* BlueDissolveMatInst;
+
+	UPROPERTY(EditAnywhere, Category = TeamColors_Live)
+		UMaterialInstance* RedMatInst;
+	UPROPERTY(EditAnywhere, Category = TeamColors_Live)
+		UMaterialInstance* BlueMatInst;
+
 	//ElimBot
 	UPROPERTY(EditAnywhere, Category = ElimBot)
 		UParticleSystem* ElimBotEffect;
@@ -255,6 +277,9 @@ private:
 		class USoundCue* ElimBotSound;
 	//ElimBot在客户端的消失，利用Destroyed()
 	virtual void Destroyed() override;
+
+	UPROPERTY()
+		class AXBlasterGameMode* XBlasterGameMode;
 
 	//为角色初始化PlayerState
 	UPROPERTY()
@@ -271,7 +296,7 @@ private:
 	UPROPERTY()
 		class UNiagaraComponent* CrownComp;
 
-	/*
+	/*/*
 	* 退出游戏的处理
 	*/
 	bool bLeftGame = false;
@@ -328,6 +353,7 @@ public:
 	FORCEINLINE bool GetbElimed() const { return bElimmed; }
 	FORCEINLINE UXPropertyComponent* GetPropertyComp() const { return PropertyComp; }
 	FORCEINLINE ULagCompensationComponent* GetLagCompensationComp() const { return LagCompensationComp; }
+	bool IsHoldingTheFlag() const;
 	bool IsLocallyReloading();
 
 	bool bFinishedSwap = false;

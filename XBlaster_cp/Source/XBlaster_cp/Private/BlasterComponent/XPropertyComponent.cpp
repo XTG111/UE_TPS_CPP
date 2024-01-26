@@ -45,8 +45,12 @@ void UXPropertyComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 
 void UXPropertyComponent::ReceivedDamage(float Damage, AController* InstigatorController)
 {
+	XBlasterGameMode = XBlasterGameMode == nullptr ? GetWorld()->GetAuthGameMode<AXBlasterGameMode>() : XBlasterGameMode;
+	
 	//当角色死亡后，就不能再次接受伤害
-	if (XCharacter->GetbElimed()) return;
+	if (XCharacter->GetbElimed() || XBlasterGameMode == nullptr) return;
+
+	Damage = XBlasterGameMode->CalculateDamage(InstigatorController, XCharacter->GetController(), Damage);
 
 	//没有护盾的扣血量
 	float DamageToHealth = Damage;
@@ -75,7 +79,6 @@ void UXPropertyComponent::ReceivedDamage(float Damage, AController* InstigatorCo
 
 	if (Health == 0.0f)
 	{
-		AXBlasterGameMode* XBlasterGameMode = GetWorld()->GetAuthGameMode<AXBlasterGameMode>();
 		if (XBlasterGameMode && XCharacter)
 		{	
 			AXBlasterPlayerController* AttackerContorller = Cast<AXBlasterPlayerController>(InstigatorController);

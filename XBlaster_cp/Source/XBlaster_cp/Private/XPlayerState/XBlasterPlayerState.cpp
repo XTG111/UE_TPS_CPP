@@ -11,6 +11,7 @@ void AXBlasterPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AXBlasterPlayerState, Defeats);
+	DOREPLIFETIME(AXBlasterPlayerState, Team);
 }
 
 void AXBlasterPlayerState::AddToScore(float ScoreAmount)
@@ -56,6 +57,27 @@ void AXBlasterPlayerState::AddToDefeats(int32 DefeatsAmount)
 		{
 			XBlasterPlayerController->SetHUDDefeats(Defeats);
 		}
+	}
+}
+
+void AXBlasterPlayerState::OnRep_Team()
+{
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetPawn()) : XCharacter;
+	if (XCharacter)
+	{
+		//设置颜色
+		XCharacter->SetColorByTeam(Team);
+	}
+}
+
+void AXBlasterPlayerState::SetTeam(ETeam TeamToSet)
+{
+	Team = TeamToSet;
+	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetPawn()) : XCharacter;
+	if (XCharacter)
+	{
+		//设置颜色
+		XCharacter->SetColorByTeam(Team);
 	}
 }
 

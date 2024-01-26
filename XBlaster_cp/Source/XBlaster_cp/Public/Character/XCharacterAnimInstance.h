@@ -105,4 +105,8 @@ private:
 	//换弹时不旋转右手
 	UPROPERTY(BlueprintReadOnly, Category = ContorlAimOffset, meta = (AllowPrivateAccess = "true"))
 		bool bTransformRightHand;
+
+	//是否持旗子
+	UPROPERTY(BlueprintReadOnly, Category = HoldTheFlag, meta = (AllowPrivateAccess = "true"))
+		bool bHoldingTheFlag;
 };

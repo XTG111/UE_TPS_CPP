@@ -3555,7 +3555,7 @@ void AXCharacter::MulticastLostTheLead_Implementation()
 # 死亡通知， player1 kill player2
 Widget->HUD->PlayerController->GameMode
 
-## 老消息向上滚动
+## 消息向上滚动
 对于有参数的定时器回调函数，必须使用委托来进行操作
 获取UI中画布的参数需要使用到两个库,然后我们就可以通过调整画布参数来控制画布的位置了
 ```c++
@@ -3576,4 +3576,84 @@ if (msg && msg->ElimAnnoceBox)
 ```
 
 # 伤害区分
-通过检测击中的骨骼区分击中的部位
+通过检测击中的骨骼区分击中的部位，来控制ApplyDamage中的伤害
+## 服务器回退中的伤害设置
+通过在LagComponent中检测我们记录的击中盒子的bool值来控制伤害
+```c++
+if (XCharacter && HitCharacter && DamageCauser && Confirm.bHitConfirmed)
+	{
+		const float Damage = Confirm.bHeadShot ? DamageCauser->HeadShotDamage : DamageCauser->Damage;
+		//应用伤害
+		UGameplayStatics::ApplyDamage(
+			HitCharacter,
+			Damage,
+			XCharacter->Controller,
+			DamageCauser,
+			UDamageType::StaticClass()
+		);
+	}
+```
+
+# 区分团队
+通过在playerstate里面添加变量来控制团队
+PlayerState设置玩家属于哪一个队伍， GameState用来统计两个队伍的得分
+
+## TeamGameMode
+更改一些BlasterGameMode里面的功能
+## 是否开启友伤
+通过在接受伤害之前，访问GameMode的判断，由于我们的TeamGameMode是继承的BlasterGameMode所以利用多态性，可以获得在TeamGameMode中的函数逻辑
+```c++
+float AXTeamGameMode::CalculateDamage(AController* Attacker, AController* Vicitim, float BaseDamage)
+{
+	AXBlasterPlayerState* AttackerState = Attacker->GetPlayerState<AXBlasterPlayerState>();
+	AXBlasterPlayerState* VicitimState = Vicitim->GetPlayerState<AXBlasterPlayerState>();
+	if (AttackerState == nullptr || VicitimState == nullptr) return BaseDamage;
+	if (VicitimState == AttackerState) return BaseDamage;
+	if (AttackerState->GetTeam() == VicitimState->GetTeam())
+	{
+		float Damage = bCanFireFriend ? BaseDamage : 0.f;
+		return Damage;
+	}
+	return BaseDamage;
+}
+```
+## 团队得分
+### 显示团队得分
+需要根据是否开启了团队竞技模式来决定是否显示。通过在gamemode里面设置bool值来操作。然后在PlayerController中当我们进行MatchState更新时，接受这个bool值来决定是否初始化显示或者隐藏这个UI控件。
+为了能够传递到客户端上显示，需要在PlayerController中设置一个可复制的参数利用OnRepNotify来控制客户端上的显示
+```c++
+void AXBlasterPlayerController::OnMatchStateSet(FName State, bool bTeamsMatch)
+{
+	MatchState = State;
+
+	//当状态是InProgress时，调用UI绘制CharacterOverlay
+	if (MatchState == MatchState::InProgress)
+	{
+		HandleMatchHasStarted(bTeamsMatch);
+		//检测是否是团队游戏
+	}
+	else if (MatchState == MatchState::CoolDown)
+	{
+		HandleCoolDown();
+	}
+}
+
+//
+bShowTeamScores = bTeamsMatch;
+//
+OnRep_bShowTeamScores()
+{
+	if (bTeamsMatch)
+	{
+		InitTeamScores();
+	}
+	else
+	{
+		HideTeamScores();
+	}
+}
+```
+### 更新团队得分
+GameMode(当玩家死亡时攻击者调用GameState) -> GameState(调用PlayerController里面的SetHUD,同时控制分数) -> PlayerController(绘制HUD)
+
+# 夺旗游戏

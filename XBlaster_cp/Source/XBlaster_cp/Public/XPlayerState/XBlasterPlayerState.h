@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerState.h"
+#include "XBlaster_cp/XTypeHeadFile/TeamState.h"
 #include "XBlasterPlayerState.generated.h"
 
 /**
@@ -34,4 +35,15 @@ private:
 		class AXBlasterPlayerController* XBlasterPlayerController;
 	UPROPERTY(ReplicatedUsing = OnRep_Defeats)
 	int32 Defeats;
+
+	//属于那个队伍
+	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_Team)
+		ETeam Team = ETeam::ET_NoTeam;
+
+	UFUNCTION()
+		void OnRep_Team();
+
+public:
+	FORCEINLINE ETeam GetTeam() const { return Team; }
+	void SetTeam(ETeam TeamToSet);
 };

@@ -24,6 +24,29 @@ public:
 	//统计一局游戏得分最高的玩家利用PlayerState
 	UPROPERTY(Replicated)
 		TArray<AXBlasterPlayerState*> TopScoringPlayers;
+	
+	/*Teams*/
+
+	//对队伍分数的修改
+	void AddRedTeamScore();
+	void AddBlueTeamScore();
+
+	//统计最高得分团队
+	UPROPERTY()
+		TArray<AXBlasterPlayerState*> RedTeam;
+	UPROPERTY()
+		TArray<AXBlasterPlayerState*> BlueTeam;
+
+	//团队分数
+	UPROPERTY(ReplicatedUsing = OnRep_RedTeamScore)
+		float RedTeamScore = 0.f;
+	UFUNCTION()
+		void OnRep_RedTeamScore();
+
+	UPROPERTY(ReplicatedUsing = OnRep_BlueTeamScore)
+		float BlueTeamScore = 0.f;
+	UFUNCTION()
+		void OnRep_BlueTeamScore();
 
 private:
 	//最高分

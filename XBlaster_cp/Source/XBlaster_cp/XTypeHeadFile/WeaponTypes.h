@@ -17,5 +17,7 @@ enum class EWeaponType :uint8
 	EWT_ShotGun UMETA(DisplayName = "ShotGun"),
 	EWT_Snipper UMETA(DisplayName = "Snipper"),
 
+	EWT_Flag UMETA(DisplayName = "Flag"),
+
 	EWT_MAX UMETA(DisplayName = "DefaultMax")
 };

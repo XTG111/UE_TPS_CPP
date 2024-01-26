@@ -44,7 +44,7 @@ public:
 	//绘制热身剩余时间
 	void SetHUDAnnouncementCountDown(float CountDownTime);
 	//设置当前比赛状态
-	void OnMatchStateSet(FName State);
+	void OnMatchStateSet(FName State, bool bTeamsMatch = false);
 	//设置手榴弹数
 	void SetHUDGrenadeAmount(int32 GrenadeAmount);
 
@@ -57,6 +57,12 @@ public:
 
 	//击杀文本广播
 	void BroadcastElim(APlayerState* Attacker,APlayerState* Victim);
+
+	//设置团队得分UI
+	void HideTeamScores();
+	void InitTeamScores();
+	void SetHUDRedTeamScores(int32 RedTeamScore);
+	void SetHUDBlueTeamScores(int32 BlueTeamScore);
 
 protected:
 	virtual void BeginPlay() override;
@@ -101,7 +107,7 @@ protected:
 	处理MatchState的不同状态下的操作
 	*/
 	//InProgress
-	void HandleMatchHasStarted();
+	void HandleMatchHasStarted(bool bTeamsMatch = false);
 	//CoolDown
 	void HandleCoolDown();
 
@@ -118,6 +124,17 @@ protected:
 	//Client RPC
 	UFUNCTION(Client, Reliable)
 		void ClientElimAnnouncement(APlayerState* Attacker, APlayerState* Victim);
+
+	//控制客户端上的分数显示
+	UPROPERTY(ReplicatedUsing = OnRep_ShowTeamsScores)
+	bool bShowTeamScores = false;
+	UFUNCTION()
+	void OnRep_ShowTeamsScores();
+
+	//用于显示文本
+	FString GetInfoText(const TArray<class AXBlasterPlayerState*>& Players);
+	//用于团队游戏显示文本
+	FString GetTeamInfoText(const class AXBlasterGameState* XBlasterGameState);
 
 private:
 

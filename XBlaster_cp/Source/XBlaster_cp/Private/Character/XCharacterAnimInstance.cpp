@@ -64,6 +64,9 @@ void UXCharacterAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	//是否死亡
 	bElimmed = XCharacter->IsElimmed();
 
+	//是否持旗
+	bHoldingTheFlag = XCharacter->IsHoldingTheFlag();
+
 	//控制持枪移动
 	//鼠标的旋转 controlRotation
 	FRotator AimRotation = XCharacter->GetBaseAimRotation();

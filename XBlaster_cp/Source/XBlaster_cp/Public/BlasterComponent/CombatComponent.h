@@ -261,6 +261,9 @@ private:
 	UPROPERTY(EditAnywhere)
 		TSubclassOf<AWeaponParent> DefaultWeaponClass;
 
+	//控制是否拿住旗子
+	bool bHoldingTheFlag = false;
+
 
 	//对于装备武器的一些功能重写
 protected:

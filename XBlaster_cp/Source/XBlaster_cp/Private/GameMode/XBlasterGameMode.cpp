@@ -34,12 +34,10 @@ void AXBlasterGameMode::OnMatchStateSet()
 		AXBlasterPlayerController* XBlasterPlayerController = Cast<AXBlasterPlayerController>(*It);
 		if (XBlasterPlayerController)
 		{
-			XBlasterPlayerController->OnMatchStateSet(MatchState);
+			XBlasterPlayerController->OnMatchStateSet(MatchState,bTeamsMatch);
 		}
 	}
 }
-
-
 
 void AXBlasterGameMode::Tick(float DeltatTime)
 {
@@ -166,4 +164,9 @@ void AXBlasterGameMode::PlayerLeftGame(AXBlasterPlayerState* LeavingPlayerState)
 	{
 		CharacterLeaving->Elim(true);
 	}
+}
+
+float AXBlasterGameMode::CalculateDamage(AController* Attacker, AController* Vicitim, float BaseDamage)
+{
+	return BaseDamage;
 }
