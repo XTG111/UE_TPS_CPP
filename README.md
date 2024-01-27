@@ -3656,4 +3656,55 @@ OnRep_bShowTeamScores()
 ### 更新团队得分
 GameMode(当玩家死亡时攻击者调用GameState) -> GameState(调用PlayerController里面的SetHUD,同时控制分数) -> PlayerController(绘制HUD)
 
-# 夺旗游戏
+# 设置玩家出生点
+新建PlayerStart类
+GameModeBase基类中 有ChoosePlayerStart函数
+```c++
+	/**
+	 * Return the 'best' player start for this player to spawn from
+	 * Default implementation looks for a random unoccupied spot
+	 * 
+	 * @param Player is the controller for whom we are choosing a playerstart
+	 * @returns AActor chosen as player start (usually a PlayerStart)
+	 */
+	UFUNCTION(BlueprintNativeEvent, Category=Game)
+	AActor* ChoosePlayerStart(AController* Player);
+```
+只不过这个函数一般在玩家初始化之前就确定了，而我们需要根据玩家的团队状态来决定这个Start的位置，而且由于这个状态并不是一开始就设置好的，所以我们需要自己写一个函数来控制玩家从哪一个出生点出生
+```c++
+//当在PollInit中初始化了PlayerState就可以调用
+void AXCharacter::SetSpawnPoint()
+{
+	if (HasAuthority() && XBlasterPlayerState->GetTeam() != ETeam::ET_NoTeam)
+	{
+		TArray<AActor*> PlayerStarts;
+		//获取所有出生点的实例
+		UGameplayStatics::GetAllActorsOfClass(this, AXTeamPlayerStart::StaticClass(), PlayerStarts);
+		//存储每个出生点信息
+		TArray<AXTeamPlayerStart*> TeamPlayerStarts;
+		for (auto Start : PlayerStarts)
+		{
+			//从出生点实例获取实际的出生点
+			AXTeamPlayerStart* TeamStart = Cast<AXTeamPlayerStart>(Start);
+			if (TeamStart && TeamStart->TeamType == XBlasterPlayerState->GetTeam())
+			{
+				//当这个出生点存在并且其Team属性和我们当前角色Team属性相同时，添加到列表
+				TeamPlayerStarts.Add(TeamStart);
+			}
+		}
+		if (TeamPlayerStarts.Num() > 0)
+		{
+			//如果存在这个列表，随机选取一个，使用它的位置当作角色的位置
+			AXTeamPlayerStart* ChoosingPlayerStart = TeamPlayerStarts[FMath::RandRange(0, TeamPlayerStarts.Num() - 1)];
+			SetActorLocationAndRotation(
+				ChoosingPlayerStart->GetActorLocation(),
+				ChoosingPlayerStart->GetActorRotation()
+			);
+		}
+	}
+}
+```
+
+# 初始界面选择不同的GameMode
+根据创建Session时的GameType来控制主机创建的GameMode，但其他客户端连接时会搜寻这个GameType下的可连接对象从而连接到对应的GameMode类型游戏
+我们可以通过之前创建的游戏子实例来存储GameMode的选择值，然后利用LobbyGameMode读取这个存储值，之后跳转到响应的地图

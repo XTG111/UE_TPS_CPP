@@ -154,6 +154,11 @@ protected:
 
 	void DroporDestroyWeapon(AWeaponParent* Weapon);
 
+	//控制玩家出生点的设置,需要先确定我们的玩家团队在此之前设置好了
+	void SetSpawnPoint();
+
+	void OnPlayerStateInitialized();
+
 private:
 	UPROPERTY(VisibleAnywhere, Category= Camera)
 		class USpringArmComponent* SpringArmComp;
@@ -372,6 +377,8 @@ public:
 		void MulticastGainerTheLead();
 	UFUNCTION(NetMulticast, Reliable)
 		void MulticastLostTheLead();
+
+	ETeam GetTeam();
 
 public:
 	//控制哪些操作将被禁用

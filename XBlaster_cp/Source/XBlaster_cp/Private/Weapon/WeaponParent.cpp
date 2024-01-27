@@ -256,6 +256,7 @@ void AWeaponParent::FPickObject_Implementation(APawn* InstigatorPawn)
 	XCharacter = Cast<AXCharacter>(InstigatorPawn);
 	if (XCharacter && XCharacter->GetCombatComp())
 	{
+		if (WeaponType == EWeaponType::EWT_Flag && XCharacter->GetTeam() == TeamType) return;
 		XCharacter->GetCombatComp()->EquipWeapon(this);
 	}
 }
@@ -293,6 +294,8 @@ void AWeaponParent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponen
 	XCharacter = Cast<AXCharacter>(OtherActor);
 	if (XCharacter)
 	{
+		if (WeaponType == EWeaponType::EWT_Flag && XCharacter->GetTeam() == TeamType) return;
+		if (XCharacter->IsHoldingTheFlag()) return;
 		XCharacter->SetOverlappingWeapon(this);
 	}
 }
@@ -302,6 +305,8 @@ void AWeaponParent::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent,
 	XCharacter = Cast<AXCharacter>(OtherActor);
 	if (XCharacter)
 	{
+		if (WeaponType == EWeaponType::EWT_Flag && XCharacter->GetTeam() == TeamType) return;
+		if (XCharacter->IsHoldingTheFlag()) return;
 		XCharacter->SetOverlappingWeapon(nullptr);
 	}
 }

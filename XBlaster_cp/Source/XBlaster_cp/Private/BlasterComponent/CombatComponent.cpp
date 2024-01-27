@@ -60,7 +60,7 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME_CONDITION(UCombatComponent, CarriedAmmo,COND_OwnerOnly);
 	DOREPLIFETIME(UCombatComponent, CombatState);
 	DOREPLIFETIME(UCombatComponent, GrenadeAmount);
-	//DOREPLIFETIME(UCombatComponent, AimWalkSpeed);
+	DOREPLIFETIME(UCombatComponent, bHoldingTheFlag);
 }
 
 
@@ -169,6 +169,16 @@ void UCombatComponent::DropEquippedWeapon()
 	if(CharacterEx && !CharacterEx->HasAuthority()) ServerDropWeapon();
 }
 
+void UCombatComponent::DropFlag()
+{
+	CombatState = ECombatState::ECS_Unoccupied;
+	if (Flag)
+	{
+		Flag->Drop();
+	}
+	if (CharacterEx && !CharacterEx->HasAuthority()) ServerDropFlag();
+}
+
 void UCombatComponent::ServerDropWeapon_Implementation()
 {
 	CombatState = ECombatState::ECS_Unoccupied;
@@ -190,7 +200,27 @@ void UCombatComponent::ServerDropWeapon_Implementation()
 		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = true;
 		CharacterEx->bUseControllerRotationYaw = false;
 	}
-	
+}
+
+//_Implementation
+void UCombatComponent::ServerDropFlag_Implementation()
+{
+	CombatState = ECombatState::ECS_Unoccupied;
+	if (Flag)
+	{
+		Flag->Drop();
+		Flag = nullptr;
+	}
+	if (EquippedWeapon)
+	{
+		EquipPrimaryWeapon(EquippedWeapon);
+		CharacterEx->UnCrouch();
+	}
+	if (EquippedWeapon == nullptr && CharacterEx)
+	{
+		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = true;
+		CharacterEx->bUseControllerRotationYaw = false;
+	}
 }
 
 void UCombatComponent::ChangeEquippedWeapon()
@@ -241,6 +271,17 @@ void UCombatComponent::AttachActorToBackPackage(AActor* ActorToAttach)
 	}
 }
 
+void UCombatComponent::AttachFlagToLeftHand(AWeaponParent* FlagToAttach)
+{
+	if (CharacterEx == nullptr || CharacterEx->GetMesh() == nullptr || FlagToAttach == nullptr) return;
+	const USkeletalMeshSocket* HandSocket = CharacterEx->GetMesh()->GetSocketByName(FName("FlagSocket"));
+	//附加
+	if (HandSocket)
+	{
+		HandSocket->AttachActor(FlagToAttach, CharacterEx->GetMesh());
+	}
+}
+
 //备弹数的UI
 void UCombatComponent::UpdateCarriedAmmo()
 {
@@ -286,20 +327,35 @@ void UCombatComponent::EquipWeapon(AWeaponParent* WeaponToEquip)
 	//如果此时不是空闲状态那么不进行装备武器
 	if (CombatState != ECombatState::ECS_Unoccupied) return;
 
-	//装备第二把武器
-	if (EquippedWeapon != nullptr && SecondWeapon == nullptr)
+	//当装备的是Flag
+	if (WeaponToEquip->WeaponType == EWeaponType::EWT_Flag && Flag == nullptr)
 	{
-		EquipSecondWeapon(WeaponToEquip);
+		bHoldingTheFlag = true;
+		//拾取flag后切换控制
+		CharacterEx->Crouch();
+		WeaponToEquip->SetWeaponState(EWeaponState::EWS_Equipped);
+		AttachFlagToLeftHand(WeaponToEquip);
+		WeaponToEquip->SetOwner(CharacterEx);
+		Flag = WeaponToEquip;
+
 	}
 	else
 	{
-		//装备第一把武器
-		EquipPrimaryWeapon(WeaponToEquip);
+		//装备第二把武器
+		if (EquippedWeapon != nullptr && SecondWeapon == nullptr)
+		{
+			EquipSecondWeapon(WeaponToEquip);
+		}
+		else
+		{
+			//装备第一把武器
+			EquipPrimaryWeapon(WeaponToEquip);
+		}
+
+		//拾取武器后切换控制
+		CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
+		CharacterEx->bUseControllerRotationYaw = true;
 	}
-	
-	//拾取武器后切换控制
-	CharacterEx->GetCharacterMovement()->bOrientRotationToMovement = false;
-	CharacterEx->bUseControllerRotationYaw = true;
 }
 
 void UCombatComponent::EquipPrimaryWeapon(AWeaponParent* WeaponToEquip)
@@ -412,6 +468,11 @@ void UCombatComponent::OnRep_SecondWeapon()
 		//播放装备武器时的音效
 		PlayEquipWeaponSound(SecondWeapon);
 	}
+}
+
+void UCombatComponent::OnRep_Flag()
+{
+
 }
 
 void UCombatComponent::StartFireTimer()
@@ -1203,9 +1264,20 @@ void UCombatComponent::UpdateHUDAmmo()
 	}
 }
 
+void UCombatComponent::SetHoldingTheFlag(bool bHolding)
+{
+	bHoldingTheFlag = bHolding;
+}
+
 bool UCombatComponent::CouldSwapWeapon()
 {
 	return (EquippedWeapon && SecondWeapon);
 }
 
-
+void UCombatComponent::OnRep_HoldingTheFlag()
+{
+	if (bHoldingTheFlag && CharacterEx && CharacterEx->IsLocallyControlled())
+	{
+		CharacterEx->Crouch();
+	}
+}

@@ -29,6 +29,7 @@
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "GameState/XBlasterGameState.h"
+#include "PlayerStart/XTeamPlayerStart.h"
 
 // Sets default values
 AXCharacter::AXCharacter()
@@ -301,7 +302,19 @@ void AXCharacter::RotateInPlace(float DeltaTime)
 		TurningInPlace = ETuringInPlace::ETIP_NoTurning;
 		return;
 	}
-
+	//当是拿取flag的状态
+	if (CombatComp && CombatComp->bHoldingTheFlag)
+	{
+		bUseControllerRotationYaw = false;
+		GetCharacterMovement()->bOrientRotationToMovement = true;
+		TurningInPlace = ETuringInPlace::ETIP_NoTurning;
+		return;
+	}
+	if (CombatComp && CombatComp->EquippedWeapon && !CombatComp->bHoldingTheFlag)
+	{
+		bUseControllerRotationYaw = true;
+		GetCharacterMovement()->bOrientRotationToMovement = false;
+	}
 	//只有当角色权限大于模拟且是本地控制是才执行AimOffset
 	if (GetLocalRole() > ENetRole::ROLE_SimulatedProxy && IsLocallyControlled())
 	{
@@ -329,10 +342,7 @@ void AXCharacter::PollInit()
 		XBlasterPlayerState = GetPlayerState<AXBlasterPlayerState>();
 		if (XBlasterPlayerState)
 		{
-			XBlasterPlayerState->AddToScore(0.f);
-			XBlasterPlayerState->AddToDefeats(0);
-			//设置队伍颜色区分
-			SetColorByTeam(XBlasterPlayerState->GetTeam());
+			OnPlayerStateInitialized();
 			//如果重生或者一开始角色就处于领先那么会生成皇冠
 			AXBlasterGameState* XBlasterGameState = Cast<AXBlasterGameState>(UGameplayStatics::GetGameState(this));
 			if (XBlasterGameState && XBlasterGameState->TopScoringPlayers.Contains(XBlasterPlayerState))
@@ -401,6 +411,7 @@ void AXCharacter::Turn(float value)
 
 void AXCharacter::CrouchMode()
 {
+	if (CombatComp->bHoldingTheFlag) return;
 	if (bIsCrouched)
 	{
 		UnCrouch();
@@ -415,6 +426,7 @@ void AXCharacter::RelaxToAimMode()
 {
 	if (CombatComp)
 	{
+		if (CombatComp->bHoldingTheFlag) return;
 		CombatComp->SetAiming(true);
 	}
 }
@@ -431,6 +443,7 @@ void AXCharacter::Jump()
 {
 	//禁用
 	if (bDisableGamePlay) return;
+	if (CombatComp && CombatComp->bHoldingTheFlag) return;
 	if(bIsCrouched)
 	{
 		UnCrouch();
@@ -456,6 +469,7 @@ void AXCharacter::ReloadWeapon()
 	if (bDisableGamePlay) return;
 	if (CombatComp)
 	{
+		if (CombatComp->bHoldingTheFlag) return;
 		CombatComp->ReloadWeapon();
 	}
 }
@@ -464,13 +478,18 @@ void AXCharacter::Grenade()
 {
 	if (CombatComp)
 	{
+		if (CombatComp->bHoldingTheFlag) return;
 		CombatComp->ThrowGrenade();
 	}
 }
 
 void AXCharacter::DropWeapon()
 {
-	if (CombatComp && CombatComp->EquippedWeapon)
+	if (CombatComp && CombatComp->bHoldingTheFlag)
+	{
+		CombatComp->DropFlag();
+	}
+	if (CombatComp && CombatComp->EquippedWeapon && !CombatComp->bHoldingTheFlag)
 	{
 		CombatComp->DropEquippedWeapon();
 	}
@@ -478,6 +497,7 @@ void AXCharacter::DropWeapon()
 
 void AXCharacter::SwapWeapon()
 {
+	if (CombatComp && CombatComp->bHoldingTheFlag) return;
 	if (CombatComp && CombatComp->CouldSwapWeapon())
 	{
 		if (CombatComp->CombatState == ECombatState::ECS_Unoccupied)
@@ -508,7 +528,11 @@ void AXCharacter::EquipWeapon()
 {
 	if (CombatComp)
 	{
-		ServerEquipWeapon();
+		if (CombatComp->bHoldingTheFlag) return;
+		if (CombatComp->CombatState == ECombatState::ECS_Unoccupied)
+		{
+			ServerEquipWeapon();
+		}
 	}
 }
 
@@ -709,6 +733,7 @@ void AXCharacter::Fireing()
 {
 	if (CombatComp && CombatComp->EquippedWeapon)
 	{
+		if (CombatComp->bHoldingTheFlag) return;
 		CombatComp->IsFired(true);
 	}
 }
@@ -740,9 +765,51 @@ float AXCharacter::GetAOYawToAnim() const
 	return AO_Yaw;
 }
 
+
 float AXCharacter::GetAOPitchToAnim() const
 {
 	return AO_Pitch;
+}
+
+//当在PollInit中初始化了PlayerState就可以调用
+void AXCharacter::SetSpawnPoint()
+{
+	if (HasAuthority() && XBlasterPlayerState->GetTeam() != ETeam::ET_NoTeam)
+	{
+		TArray<AActor*> PlayerStarts;
+		//获取所有出生点的实例
+		UGameplayStatics::GetAllActorsOfClass(this, AXTeamPlayerStart::StaticClass(), PlayerStarts);
+		//存储每个出生点信息
+		TArray<AXTeamPlayerStart*> TeamPlayerStarts;
+		for (auto Start : PlayerStarts)
+		{
+			//从出生点实例获取实际的出生点
+			AXTeamPlayerStart* TeamStart = Cast<AXTeamPlayerStart>(Start);
+			if (TeamStart && TeamStart->TeamType == XBlasterPlayerState->GetTeam())
+			{
+				//当这个出生点存在并且其Team属性和我们当前角色Team属性相同时，添加到列表
+				TeamPlayerStarts.Add(TeamStart);
+			}
+		}
+		if (TeamPlayerStarts.Num() > 0)
+		{
+			//如果存在这个列表，随机选取一个，使用它的位置当作角色的位置
+			AXTeamPlayerStart* ChoosingPlayerStart = TeamPlayerStarts[FMath::RandRange(0, TeamPlayerStarts.Num() - 1)];
+			SetActorLocationAndRotation(
+				ChoosingPlayerStart->GetActorLocation(),
+				ChoosingPlayerStart->GetActorRotation()
+			);
+		}
+	}
+}
+
+void AXCharacter::OnPlayerStateInitialized()
+{
+	XBlasterPlayerState->AddToScore(0.f);
+	XBlasterPlayerState->AddToDefeats(0);
+	//设置队伍颜色区分
+	SetColorByTeam(XBlasterPlayerState->GetTeam());
+	SetSpawnPoint();
 }
 
 AWeaponParent* AXCharacter::GetEquippedWeapon()
@@ -937,6 +1004,7 @@ void AXCharacter::Elim(bool bPlayerLeftGame)
 {
 	if (CombatComp)
 	{
+		DroporDestroyWeapon(CombatComp->Flag);
 		DroporDestroyWeapon(CombatComp->EquippedWeapon);
 		DroporDestroyWeapon(CombatComp->SecondWeapon);
 	}
@@ -1087,6 +1155,13 @@ bool AXCharacter::IsLocallyReloading()
 {
 	if (CombatComp == nullptr) return false;
 	return CombatComp->bLocallyReloading;
+}
+
+ETeam AXCharacter::GetTeam()
+{
+	XBlasterPlayerState = XBlasterPlayerState == nullptr ? GetPlayerState<AXBlasterPlayerState>() : XBlasterPlayerState;
+	if (XBlasterPlayerState == nullptr)	return ETeam::ET_NoTeam;
+	return XBlasterPlayerState->GetTeam();
 }
 
 //为了显示领先者的皇冠到所有客户端

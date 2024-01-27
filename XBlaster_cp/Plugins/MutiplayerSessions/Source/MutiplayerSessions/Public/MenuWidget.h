@@ -63,7 +63,9 @@ private:
 	void MenuTearDown();
 
 	//一些参数，实现自定义输入
+	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	int32 NumPublicConnections{ 4 };
+	UPROPERTY(BlueprintReadWrite, meta = (AllowPrivateAccess = "true"))
 	FString MatchType{ TEXT("FreeForAll") };
 
 	//登录大厅

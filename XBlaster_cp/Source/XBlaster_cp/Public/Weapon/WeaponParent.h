@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "XBlaster_cp/XTypeHeadFile/WeaponTypes.h"
+#include "XBlaster_cp/XTypeHeadFile/TeamState.h"
 #include "Interfaces/FObjectInterface.h"
 #include "WeaponParent.generated.h"
 //作为武器父类被武器实例类继承
@@ -151,11 +152,15 @@ public:
 	void SetHUDAmmo();
 
 	//丢掉武器
-	void Drop();
+	virtual void Drop();
 
 	//武器类型控制
 	UPROPERTY(EditAnywhere)
 		EWeaponType WeaponType;
+
+	//团队类型
+	UPROPERTY(EditAnywhere)
+		ETeam TeamType;
 
 	//换弹后更新子弹数
 	void AddAmmo(int32 AmmoToAdd);

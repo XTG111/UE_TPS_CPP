@@ -78,6 +78,10 @@ protected:
 	UFUNCTION()
 		void OnRep_SecondWeapon();
 
+	//控制flag
+	UFUNCTION()
+		void OnRep_Flag();
+
 	//判断能否攻击
 	void ControlFire(bool bPressed);
 	//对不同开火状态的武器编写各自的开火函数
@@ -132,6 +136,8 @@ protected:
 	//丢弃
 	UFUNCTION(Server, Reliable)
 		void ServerDropWeapon();
+	UFUNCTION(Server, Reliable)
+		void ServerDropFlag();
 
 	//投掷
 	void ThrowGrenade();
@@ -163,6 +169,10 @@ private:
 	//副武器
 	UPROPERTY(ReplicatedUsing = OnRep_SecondWeapon, VisibleAnywhere)
 		AWeaponParent* SecondWeapon;
+
+	//Flag
+	UPROPERTY(ReplicatedUsing = OnRep_Flag, VisibleAnywhere)
+		AWeaponParent* Flag;
 
 	//瞄准状态
 	UPROPERTY(ReplicatedUsing = OnRep_UnderAming, VisibleAnywhere)
@@ -262,8 +272,10 @@ private:
 		TSubclassOf<AWeaponParent> DefaultWeaponClass;
 
 	//控制是否拿住旗子
+	UPROPERTY(ReplicatedUsing = OnRep_HoldingTheFlag)
 	bool bHoldingTheFlag = false;
-
+	UFUNCTION()
+		void OnRep_HoldingTheFlag();
 
 	//对于装备武器的一些功能重写
 protected:
@@ -271,11 +283,14 @@ protected:
 	void AttachActorToRightHand(AActor* ActorToAttach);
 	void AttachActorToLeftHand(AActor* ActorToAttach);
 	void AttachActorToBackPackage(AActor* ActorToAttach);
+	void AttachFlagToLeftHand(AWeaponParent* FlagToAttach);
 	void UpdateCarriedAmmo();
 	void PlayEquipWeaponSound(AWeaponParent* WeaponToEquip);
 	void ReloadWeaponAutomatic();
 	//丢弃枪械
 	void DropEquippedWeapon();
+	//丢弃flag
+	void DropFlag();
 	//投掷时显示手雷
 	void ShowAttachedGrenade(bool bShowGrenade);
 	//交换武器
@@ -314,6 +329,9 @@ public:
 	void SpawnDefaultWeapon();
 	//装备默认武器后更新对应的UI
 	void UpdateHUDAmmo();
+
+	//控制举旗
+	void SetHoldingTheFlag(bool bHolding);
 
 	//获取武器
 	FORCEINLINE AWeaponParent* GetEquippedWeapon() const { return EquippedWeapon; }
