@@ -22,7 +22,7 @@ void AFlag::Drop()
 {
 	XCharacter = XCharacter == nullptr ? Cast<AXCharacter>(GetOwner()) : XCharacter;
 	//不用举旗了
-s	if (XCharacter && XCharacter->GetCombatComp())
+	if (XCharacter && XCharacter->GetCombatComp())
 	{
 		XCharacter->SetOverlappingWeapon(nullptr);
 		XCharacter->GetCombatComp()->SetHoldingTheFlag(false);

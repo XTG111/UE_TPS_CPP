@@ -97,4 +97,11 @@ private:
 	int32 LastNumPublicConnections;
 	FString LastMatchType;
 
+
+	//存储建立连接的最大人数和游戏模式
+	int32 DesiredNumPublicConnections{};
+	FString DesireMatchType{};
+public:
+	FORCEINLINE int32 GetDesiredNumPublicConnections() const { return DesiredNumPublicConnections; }
+	FORCEINLINE FString GetDesireMatchType() const { return DesireMatchType; }
 };

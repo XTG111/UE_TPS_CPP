@@ -3,6 +3,8 @@
 
 #include "GameMode/LobbyGameMode.h"
 #include "GameFramework/GameStateBase.h"
+#include "MultiplayerSessionSubsystem.h"
+#include "MatchType.h"
 
 void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
 {
@@ -11,16 +13,35 @@ void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
 	{
 		AGameModeBase* SelfGameState = GetGameState<AGameModeBase>();
 		int32 NumOfPlayer = SelfGameState->GetNumPlayers();
-		if (NumOfPlayer == 2)
+
+		UGameInstance* GameInstance = GetGameInstance();
+		if (GameInstance)
 		{
-			UWorld* World = GetWorld();
-			if (World)
+			UMultiplayerSessionSubsystem* Subsystem = GameInstance->GetSubsystem<UMultiplayerSessionSubsystem>();
+			check(Subsystem);
+			//当连接人数达到我们自定义的人数进行跳转
+			if (NumOfPlayer == Subsystem->GetDesiredNumPublicConnections())
 			{
-				//seamlessTravel
-				bUseSeamlessTravel = true;
-				World->ServerTravel(FString("/Game/Map/XBlaster_Map?listen"));
+				UWorld* World = GetWorld();
+				if (World)
+				{
+					//seamlessTravel
+					bUseSeamlessTravel = true;
+					FString MatchType = Subsystem->GetDesireMatchType();
+					if (MatchType == "FreeForAll")
+					{
+						World->ServerTravel(FString("/Game/Map/XBlaster_Map?listen"));
+					}
+					else if (MatchType == "Teams")
+					{
+						World->ServerTravel(FString("/Game/Map/XBlaster_Map?listen"));
+					}
+					else if (MatchType == "CTF")
+					{
+						World->ServerTravel(FString("/Game/Map/XBlaster_Map?listen"));
+					}
+				}
 			}
 		}
 	}
-	
 }
