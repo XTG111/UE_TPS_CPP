@@ -10,13 +10,16 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHighPingDelegate, bool, bPingTooHigh);
 
 /**
- * 
+ *
  */
 UCLASS()
 class XBLASTER_CP_API AXBlasterPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 public:
+
+	AXBlasterPlayerController();
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	//synced with server clock;计算当前控制器控制的客户端对应的服务器准确时刻
@@ -56,7 +59,7 @@ public:
 	FHighPingDelegate HighPingDelegate;
 
 	//击杀文本广播
-	void BroadcastElim(APlayerState* Attacker,APlayerState* Victim);
+	void BroadcastElim(APlayerState* Attacker, APlayerState* Victim);
 
 	//设置团队得分UI
 	void HideTeamScores();
@@ -95,9 +98,9 @@ protected:
 	void CheckTimeSync(float DeltaTime);
 	//手动初始化CharacterOverlayUI
 	void PollInit();
-	
+
 	//RPC检测当前服务器游戏状态
-	UFUNCTION(Server,Reliable)
+	UFUNCTION(Server, Reliable)
 		void ServerCheckMatchState();
 	//当客户端加入时的状态，因为所有客户端相对于服务器来说都是在游戏中加入的
 	UFUNCTION(Client, Reliable)
@@ -127,9 +130,9 @@ protected:
 
 	//控制客户端上的分数显示
 	UPROPERTY(ReplicatedUsing = OnRep_ShowTeamsScores)
-	bool bShowTeamScores = false;
+		bool bShowTeamScores = false;
 	UFUNCTION()
-	void OnRep_ShowTeamsScores();
+		void OnRep_ShowTeamsScores();
 
 	//用于显示文本
 	FString GetInfoText(const TArray<class AXBlasterPlayerState*>& Players);
@@ -162,7 +165,7 @@ private:
 		FName MatchState;
 	UFUNCTION()
 		void OnRep_MatchState();
-	
+
 	UPROPERTY()
 		class UCharacterOverlayWidget* CharacterOverlayWdg;
 
@@ -215,4 +218,11 @@ private:
 
 	//用来确定是否打开了这个UI
 	bool bReturnToMainMenuOpen = false;
+
+
+	//Chat System
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		class UXChatComponent* ChatComponent;
+	void BeginChat();
 };

@@ -30,11 +30,14 @@
 #include "NiagaraFunctionLibrary.h"
 #include "GameState/XBlasterGameState.h"
 #include "PlayerStart/XTeamPlayerStart.h"
+#include "MultiplayerSessionSubsystem.h"
+
+
 
 // Sets default values
 AXCharacter::AXCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComp"));
 	SpringArmComp->SetupAttachment(GetMesh());
@@ -42,11 +45,11 @@ AXCharacter::AXCharacter()
 	SpringArmComp->bUsePawnControlRotation = true;
 
 	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComp"));
-	CameraComp->SetupAttachment(SpringArmComp,USpringArmComponent::SocketName);
+	CameraComp->SetupAttachment(SpringArmComp, USpringArmComponent::SocketName);
 	CameraComp->bUsePawnControlRotation = false;
 
 	//设置相机放大后的清晰度
-	
+
 
 	//消除胶囊体组件对于相机的碰撞
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
@@ -93,7 +96,7 @@ AXCharacter::AXCharacter()
 	//GrenadeSocket
 	AttachGrenade->SetupAttachment(GetMesh(), FName("GrenadeSocket"));
 	AttachGrenade->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	
+
 
 	/*构造包围盒Box 到 对应的骨骼上*/
 	headbox = CreateDefaultSubobject<UBoxComponent>(TEXT("HeadBox"));
@@ -185,7 +188,7 @@ void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	//复制我们需要的变量生命周期,只复制到当前客户端
-	DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon,COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AXCharacter, OverlappingWeapon, COND_OwnerOnly);
 	DOREPLIFETIME(AXCharacter, bUnderJump);
 	DOREPLIFETIME(AXCharacter, TurningInPlace);
 	DOREPLIFETIME(AXCharacter, bDisableGamePlay);
@@ -224,7 +227,7 @@ void AXCharacter::OnRep_ReplicatedMovement()
 
 void AXCharacter::SetColorByTeam(ETeam team)
 {
-	if(GetMesh())
+	if (GetMesh())
 	{
 		switch (team)
 		{
@@ -245,7 +248,7 @@ void AXCharacter::SetColorByTeam(ETeam team)
 			}
 			break;
 		case ETeam::ET_NoTeam:
-			if(OriginalMatInst && BlueDissolveMatInst)
+			if (OriginalMatInst && BlueDissolveMatInst)
 			{
 				GetMesh()->SetMaterial(0, OriginalMatInst);
 				//设置没有团队时的溶解材质
@@ -266,8 +269,10 @@ void AXCharacter::BeginPlay()
 
 	//给OverHeadWidget声明
 	UOverHeadWidget* CharacterHeadWidget = Cast<UOverHeadWidget>(OverHeadWidget->GetUserWidgetObject());
-	CharacterHeadWidget->ShowPlayerNetRole(this);
-	
+	//CharacterHeadWidget->ShowPlayerNetRole(this);
+	UMultiplayerSessionSubsystem* GameInstance_GetName = Cast<UMultiplayerSessionSubsystem>(GetGameInstance());
+	CharacterHeadWidget->SetDisplayeText(GameInstance_GetName->GetSteamName());
+
 	//
 	UpdateHUDHealth();
 	UpdateHUDShield();
@@ -444,7 +449,7 @@ void AXCharacter::Jump()
 	//禁用
 	if (bDisableGamePlay) return;
 	if (CombatComp && CombatComp->bHoldingTheFlag) return;
-	if(bIsCrouched)
+	if (bIsCrouched)
 	{
 		UnCrouch();
 	}
@@ -504,7 +509,7 @@ void AXCharacter::SwapWeapon()
 		{
 			ServerSwapWeapon();
 		}
-		if(!HasAuthority() && CombatComp->CombatState == ECombatState::ECS_Unoccupied)
+		if (!HasAuthority() && CombatComp->CombatState == ECombatState::ECS_Unoccupied)
 		{
 			PlaySwapMontage();
 			CombatComp->CombatState = ECombatState::ECS_SwapingWeapons;
@@ -599,7 +604,7 @@ void AXCharacter::DroporDestroyWeapon(AWeaponParent* Weapon)
 }
 
 void AXCharacter::AimOffset(float DeltaTime)
-{	
+{
 	if (CombatComp && CombatComp->EquippedWeapon == nullptr)
 	{
 		return;
@@ -637,7 +642,7 @@ void AXCharacter::AimOffset(float DeltaTime)
 
 		TurnInPlace(DeltaTime);
 	}
-		CalculateAO_Pitch();
+	CalculateAO_Pitch();
 }
 
 void AXCharacter::CalculateAO_Pitch()
@@ -665,7 +670,7 @@ float AXCharacter::CalculateVelocity()
 ////当在原地时 Yaw的偏转到90，-90时修改状态
 void AXCharacter::TurnInPlace(float DeltaTime)
 {
-//	UE_LOG(LogTemp, Warning, TEXT("AO_YAW:%f"), AO_Yaw);
+	//	UE_LOG(LogTemp, Warning, TEXT("AO_YAW:%f"), AO_Yaw);
 	if (AO_Yaw > 90.f)
 	{
 		TurningInPlace = ETuringInPlace::ETIP_Right;
@@ -698,7 +703,7 @@ void AXCharacter::SimProxiesturn()
 	//如果是本地或者服务器控制才能够开启bRotateRootBOne
 	//如果是模拟转向
 	bRotateRootBone = false;
-	
+
 	if (Speed > 0.f)
 	{
 		TurningInPlace = ETuringInPlace::ETIP_NoTurning;
@@ -716,7 +721,7 @@ void AXCharacter::SimProxiesturn()
 		{
 			TurningInPlace = ETuringInPlace::ETIP_Right;
 		}
-		else if(ProxyYaw < -TurnThreshold)
+		else if (ProxyYaw < -TurnThreshold)
 		{
 			TurningInPlace = ETuringInPlace::ETIP_Left;
 		}
@@ -849,7 +854,7 @@ void AXCharacter::PlayHitReactMontage()
 		return;
 	}
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance&& HitReactMontage)
+	if (AnimInstance && HitReactMontage)
 	{
 		AnimInstance->Montage_Play(HitReactMontage);
 		FName SectionName("FromFront");
@@ -860,7 +865,7 @@ void AXCharacter::PlayHitReactMontage()
 void AXCharacter::PlayElimMontage()
 {
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-	if (AnimInstance&&ElimMontage)
+	if (AnimInstance && ElimMontage)
 	{
 		AnimInstance->Montage_Play(ElimMontage);
 	}
@@ -1024,7 +1029,7 @@ void AXCharacter::MulticastElim_Implementation(bool bPlayerLeftGame)
 
 	bElimmed = true;
 	PlayElimMontage();
-	
+
 	//禁用游戏输入
 	bDisableGamePlay = true;
 	GetCharacterMovement()->DisableMovement();
@@ -1092,7 +1097,7 @@ void AXCharacter::ElimTimerFinished()
 	XBlasterGameMode = XBlasterGameMode == nullptr ? GetWorld()->GetAuthGameMode<AXBlasterGameMode>() : XBlasterGameMode;
 
 	//bLeftGame为真时，表示角色离开了游戏不再重生
-	if (XBlasterGameMode  && !bLeftGame)
+	if (XBlasterGameMode && !bLeftGame)
 	{
 		XBlasterGameMode->RequestRespawn(this, Controller);
 	}

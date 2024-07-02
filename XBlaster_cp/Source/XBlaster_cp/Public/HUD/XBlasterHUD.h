@@ -26,7 +26,7 @@ public:
 	FLinearColor CrosshairColor;
 };
 /**
- * 
+ *
  */
 UCLASS()
 class XBLASTER_CP_API AXBlasterHUD : public AHUD
@@ -37,18 +37,25 @@ public:
 	virtual void DrawHUD() override;
 
 	//人物属性
-	UPROPERTY(EditAnywhere,Category = "Player State")
+	UPROPERTY(EditAnywhere, Category = "Player State")
 		TSubclassOf<class UUserWidget> CharacterOverlayWdgClass;
 	UPROPERTY()
 		class UCharacterOverlayWidget* CharacterOverlayWdg;
 
 	UPROPERTY(EditAnywhere, Category = "Warm State")
-		TSubclassOf<class UUserWidget> AnnouncementClass;
+		TSubclassOf< UUserWidget> AnnouncementClass;
 	UPROPERTY()
 		class UAnnouncementWidget* AnnouncementWdg;
 
 	UPROPERTY(EditAnywhere)
 		TSubclassOf<class UElimAnnouncemetWidget> ElimAnnouncementClass;
+
+	UPROPERTY(EditAnywhere, Category = "Chat")
+		TSubclassOf<UUserWidget> ChatBaseUIClass;
+	UPROPERTY(EditAnywhere, Category = "Chat")
+		TSubclassOf<UUserWidget> ChatTextClass;
+	UPROPERTY()
+		class UXChatWidget* ChatWdg;
 
 protected:
 	virtual void BeginPlay() override;
@@ -57,7 +64,7 @@ private:
 	FHUDPackage HUDPackage;
 
 	UPROPERTY()
-	 class APlayerController* PlayerController;
+		class APlayerController* PlayerController;
 
 	//绘制准星，Spread用于控制准星的变化
 	void DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVector2D Spread, FLinearColor DrawCrosshairColor);
@@ -79,7 +86,8 @@ private:
 public:
 	void SetHUDPackage(const FHUDPackage& Package);
 	void AddCharacterOverlay();
+	void AddChatUI();
 	void AddAnnouncement();
-	void AddElimAnnouncement(FString Attacker,FString Victim);
-	
+	void AddElimAnnouncement(FString Attacker, FString Victim);
+
 };

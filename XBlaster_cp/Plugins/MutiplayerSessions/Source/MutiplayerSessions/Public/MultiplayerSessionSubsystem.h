@@ -25,7 +25,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMultiPlayerOnDestroySessionComplete
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMultiPlayerOnStartSessionComplete, bool, bWasSuccessful);
 
 /**
- * 
+ *
  */
 UCLASS()
 class MUTIPLAYERSESSIONS_API UMultiplayerSessionSubsystem : public UGameInstanceSubsystem
@@ -104,4 +104,6 @@ private:
 public:
 	FORCEINLINE int32 GetDesiredNumPublicConnections() const { return DesiredNumPublicConnections; }
 	FORCEINLINE FString GetDesireMatchType() const { return DesireMatchType; }
+
+	FString GetSteamName();
 };

@@ -19,6 +19,13 @@
 #include "Components/Image.h"
 #include "HUD/ReturnToMainMenuWidget.h"
 #include "XBlaster_cp/XTypeHeadFile/Announcement.h"
+#include "BlasterComponent/XChatComponent.h"
+
+AXBlasterPlayerController::AXBlasterPlayerController()
+{
+	ChatComponent = CreateDefaultSubobject<UXChatComponent>(TEXT("ChatComponent"));
+	ChatComponent->SetIsReplicated(true);
+}
 
 void AXBlasterPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -33,6 +40,7 @@ void AXBlasterPlayerController::SetupInputComponent()
 	if (InputComponent == nullptr) return;
 
 	InputComponent->BindAction("Quit", IE_Pressed, this, &AXBlasterPlayerController::ShowReturnToMainMenu);
+	InputComponent->BindAction("Chat", IE_Pressed, this, &AXBlasterPlayerController::BeginChat);
 }
 
 void AXBlasterPlayerController::ShowReturnToMainMenu()
@@ -116,12 +124,12 @@ void AXBlasterPlayerController::ServerCheckMatchState_Implementation()
 		MatchState = GameMode->GetMatchState();
 		CoolDownTime = GameMode->CoolDownTime;
 		//OnMatchStateSet(MatchState);
-		ClientJoinMidGame(MatchState, WarmupTime, MatchTime, LevelStartingTime,CoolDownTime);
+		ClientJoinMidGame(MatchState, WarmupTime, MatchTime, LevelStartingTime, CoolDownTime);
 	}
 }
 
 //Client Accept Server's Time And State to fix Client Time And State
-void AXBlasterPlayerController::ClientJoinMidGame_Implementation(FName StateOfMatch,float Warmup,float Match,float StartingTime, float CoolDown)
+void AXBlasterPlayerController::ClientJoinMidGame_Implementation(FName StateOfMatch, float Warmup, float Match, float StartingTime, float CoolDown)
 {
 	WarmupTime = Warmup;
 	MatchTime = Match;
@@ -196,7 +204,7 @@ void AXBlasterPlayerController::SetHUDTime()
 			SecondsLeft = FMath::CeilToInt(XBlasterGameMode->GetCountDownTime() + LevelStartingTime);
 		}
 	}
-	
+
 	//当SecondsLeft和上一次不相等时更新UI;
 	if (SecondsLeft != CountDownInt)
 	{
@@ -240,11 +248,11 @@ float AXBlasterPlayerController::GetSeverTime()
 	{
 		return GetWorld()->GetTimeSeconds();
 
-	}	
-	else 
+	}
+	else
 	{
 		return GetWorld()->GetTimeSeconds() + ClientServerDelta;
-	} 
+	}
 }
 
 void AXBlasterPlayerController::SetHUDHealth(float Health, float MaxHealth)
@@ -462,10 +470,9 @@ void AXBlasterPlayerController::OnRep_MatchState()
 	}
 }
 
-
 void AXBlasterPlayerController::HandleMatchHasStarted(bool bTeamsMatch)
 {
-	if(HasAuthority())
+	if (HasAuthority())
 	{
 		bShowTeamScores = bTeamsMatch;
 	}
@@ -475,12 +482,13 @@ void AXBlasterPlayerController::HandleMatchHasStarted(bool bTeamsMatch)
 		if (XBlasterHUD->CharacterOverlayWdg == nullptr)
 		{
 			XBlasterHUD->AddCharacterOverlay();
+			XBlasterHUD->AddChatUI();
 		}
 		if (XBlasterHUD->AnnouncementWdg)
 		{
 			XBlasterHUD->AnnouncementWdg->SetVisibility(ESlateVisibility::Hidden);
 		}
-		if(HasAuthority()) 
+		if (HasAuthority())
 		{
 			if (bTeamsMatch)
 			{
@@ -535,7 +543,7 @@ FString AXBlasterPlayerController::GetInfoText(const TArray<class AXBlasterPlaye
 {
 	AXBlasterPlayerState* XBlasterPlayerState = GetPlayerState< AXBlasterPlayerState >();
 	if (XBlasterPlayerState == nullptr) return FString();
-	
+
 	FString InfoTextString;
 	if (Players.Num() == 0)
 	{
@@ -564,7 +572,7 @@ FString AXBlasterPlayerController::GetInfoText(const TArray<class AXBlasterPlaye
 
 FString AXBlasterPlayerController::GetTeamInfoText(const AXBlasterGameState* XBlasterGameState)
 {
-	if(XBlasterGameState == nullptr) return FString();
+	if (XBlasterGameState == nullptr) return FString();
 	FString InfoTextString;
 	const int32 RedTeamScore = XBlasterGameState->RedTeamScore;
 	const int32 BlueTeamScore = XBlasterGameState->BlueTeamScore;
@@ -806,4 +814,10 @@ void AXBlasterPlayerController::ClientElimAnnouncement_Implementation(APlayerSta
 			}
 		}
 	}
+}
+
+
+void AXBlasterPlayerController::BeginChat()
+{
+	ChatComponent->ToggleChatWindow();
 }

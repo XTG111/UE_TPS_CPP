@@ -9,6 +9,7 @@
 #include "Components/HorizontalBox.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
+#include "ChatSystem/Widget/XChatWidget.h"
 
 void AXBlasterHUD::BeginPlay()
 {
@@ -22,6 +23,16 @@ void AXBlasterHUD::AddCharacterOverlay()
 	{
 		CharacterOverlayWdg = CreateWidget<UCharacterOverlayWidget>(PlayerController, CharacterOverlayWdgClass);
 		CharacterOverlayWdg->AddToViewport();
+	}
+}
+
+void AXBlasterHUD::AddChatUI()
+{
+	PlayerController = PlayerController == nullptr ? GetOwningPlayerController() : PlayerController;
+	if (PlayerController && ChatBaseUIClass)
+	{
+		ChatWdg = CreateWidget<UXChatWidget>(PlayerController, ChatBaseUIClass);
+		ChatWdg->AddToViewport();
 	}
 }
 
@@ -53,13 +64,13 @@ void AXBlasterHUD::AddElimAnnouncement(FString Attacker, FString Victim)
 				if (msg && msg->ElimAnnoceBox)
 				{
 					UCanvasPanelSlot* CanvasSlot = UWidgetLayoutLibrary::SlotAsCanvasSlot(msg->ElimAnnoceBox);
-					if(CanvasSlot)
+					if (CanvasSlot)
 					{
 						FVector2D Position = CanvasSlot->GetPosition();
 						FVector2D NewPosition(CanvasSlot->GetPosition().X, Position.Y - CanvasSlot->GetSize().Y);
 						CanvasSlot->SetPosition(NewPosition);
 					}
-		
+
 				}
 
 			}

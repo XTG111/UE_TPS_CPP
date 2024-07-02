@@ -4,13 +4,14 @@
 #include "MultiplayerSessionSubsystem.h"
 #include "OnlineSubsystem.h"
 #include "OnlineSessionSettings.h"
+#include "Interfaces/OnlineIdentityInterface.h"
 
-UMultiplayerSessionSubsystem::UMultiplayerSessionSubsystem():
-	CreateSessionCompleteDelegate(FOnCreateSessionCompleteDelegate::CreateUObject(this,&UMultiplayerSessionSubsystem::OnCreateSessionComplete)),
-	FindSessionsCompleteDelegate(FOnFindSessionsCompleteDelegate::CreateUObject(this,&UMultiplayerSessionSubsystem::OnFindSessionsComplete)),
-	JoinSessionCompleteDelegate(FOnJoinSessionCompleteDelegate::CreateUObject(this,&UMultiplayerSessionSubsystem::OnJoinSessionComplete)),
-	DestroySessionCompleteDelegate(FOnDestroySessionCompleteDelegate::CreateUObject(this,&UMultiplayerSessionSubsystem::OnDestroySessionComplete)),
-	StartSessionCompleteDelegate(FOnStartSessionCompleteDelegate::CreateUObject(this,&UMultiplayerSessionSubsystem::OnStartSessionComplete))
+UMultiplayerSessionSubsystem::UMultiplayerSessionSubsystem() :
+	CreateSessionCompleteDelegate(FOnCreateSessionCompleteDelegate::CreateUObject(this, &UMultiplayerSessionSubsystem::OnCreateSessionComplete)),
+	FindSessionsCompleteDelegate(FOnFindSessionsCompleteDelegate::CreateUObject(this, &UMultiplayerSessionSubsystem::OnFindSessionsComplete)),
+	JoinSessionCompleteDelegate(FOnJoinSessionCompleteDelegate::CreateUObject(this, &UMultiplayerSessionSubsystem::OnJoinSessionComplete)),
+	DestroySessionCompleteDelegate(FOnDestroySessionCompleteDelegate::CreateUObject(this, &UMultiplayerSessionSubsystem::OnDestroySessionComplete)),
+	StartSessionCompleteDelegate(FOnStartSessionCompleteDelegate::CreateUObject(this, &UMultiplayerSessionSubsystem::OnStartSessionComplete))
 {
 	//获得onlinesubsystem的变量
 	IOnlineSubsystem* Subsystem = IOnlineSubsystem::Get();
@@ -32,7 +33,7 @@ void UMultiplayerSessionSubsystem::CreateSession(int32 NumPublicConnections, FSt
 
 	//如果存在会话销毁它
 	auto ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
-	if(ExistingSession != nullptr)
+	if (ExistingSession != nullptr)
 	{
 		bCreateSessionOnDestroy = true;
 		LastNumPublicConnections = NumPublicConnections;
@@ -87,7 +88,7 @@ void UMultiplayerSessionSubsystem::FindSessions(int32 MaxSearchResults)
 
 	//设置会话接口中的寻找到的会话
 	//同样需要传入LocalPlayer的NetID
-	const ULocalPlayer * LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
+	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	if (!SessionInterface->FindSessions(*LocalPlayer->GetPreferredUniqueNetId(), SessionSearch.ToSharedRef()))
 	{
 		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionsCompleteDelegateHandle);
@@ -153,7 +154,7 @@ void UMultiplayerSessionSubsystem::OnCreateSessionComplete(FName SessionName, bo
 
 	//广播自定义委托
 	MultiPlayerOnCreateSessionComplete.Broadcast(bWasSuccessful);
-	
+
 }
 
 //SessionInterface自带的寻找会话的回调函数
@@ -190,7 +191,7 @@ void UMultiplayerSessionSubsystem::OnDestroySessionComplete(FName SessionName, b
 	{
 		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
 	}
-	//当被提出服务器，想自己创建时，点击Host先判断是否存在，如果存在调用Destroy，然后在回调成功下继续创建
+	//当被踢出服务器，想自己创建时，点击Host先判断是否存在，如果存在调用Destroy，然后在回调成功下继续创建
 	if (bWasSuccessful && bCreateSessionOnDestroy)
 	{
 		bCreateSessionOnDestroy = false;
@@ -202,4 +203,22 @@ void UMultiplayerSessionSubsystem::OnDestroySessionComplete(FName SessionName, b
 
 void UMultiplayerSessionSubsystem::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)
 {
+}
+
+FString UMultiplayerSessionSubsystem::GetSteamName()
+{
+	IOnlineSubsystem* OnlineSubsystem = IOnlineSubsystem::Get();
+	if (OnlineSubsystem)
+	{
+		IOnlineIdentityPtr IdentityInterface = OnlineSubsystem->GetIdentityInterface();
+		if (IdentityInterface.IsValid())
+		{
+			TSharedPtr<const FUniqueNetId> UserId = IdentityInterface->GetUniquePlayerId(0);
+			if (UserId.IsValid())
+			{
+				return IdentityInterface->GetPlayerNickname(*UserId);
+			}
+		}
+	}
+	return FString(TEXT("Unknown"));
 }

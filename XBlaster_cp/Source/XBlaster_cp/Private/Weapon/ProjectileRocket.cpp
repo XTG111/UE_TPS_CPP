@@ -24,6 +24,7 @@ AProjectileRocket::AProjectileRocket()
 	RocketMovementComp->SetIsReplicated(true);
 }
 
+#if WITH_EDITOR
 void AProjectileRocket::PostEditChangeProperty(FPropertyChangedEvent& Event)
 {
 	Super::PostEditChangeProperty(Event);
@@ -38,6 +39,7 @@ void AProjectileRocket::PostEditChangeProperty(FPropertyChangedEvent& Event)
 		}
 	}
 }
+#endif
 
 void AProjectileRocket::BeginPlay()
 {
@@ -56,11 +58,11 @@ void AProjectileRocket::BeginPlay()
 	if (RocketLoopSound && LoopingSoundAtt)
 	{
 		RocketLoopComp = UGameplayStatics::SpawnSoundAttached(
-			RocketLoopSound, 
+			RocketLoopSound,
 			GetRootComponent(),
-			FName(), 
-			GetActorLocation(), 
-			EAttachLocation::KeepWorldPosition, 
+			FName(),
+			GetActorLocation(),
+			EAttachLocation::KeepWorldPosition,
 			false,
 			1.0f,
 			1.f,
@@ -74,12 +76,12 @@ void AProjectileRocket::BeginPlay()
 
 void AProjectileRocket::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit)
 {
-	APawn* FiringPawn =  GetInstigator();
+	APawn* FiringPawn = GetInstigator();
 	//由于我们改变了OnHit事件的处理位置，现在所有服务器都可以处理，但是伤害的计算只需要在服务器上完成
-	if (FiringPawn&&HasAuthority())
+	if (FiringPawn && HasAuthority())
 	{
 		//如果碰撞发生在和自己身上返回
-		if (OtherActor == GetOwner()) 
+		if (OtherActor == GetOwner())
 		{
 			return;
 		}

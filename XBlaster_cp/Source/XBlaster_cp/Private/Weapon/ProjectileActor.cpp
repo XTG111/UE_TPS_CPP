@@ -55,6 +55,13 @@ void AProjectileActor::BeginPlay()
 	}
 }
 
+#if WITH_EDITOR
+void AProjectileActor::PostEditChangeProperty(FPropertyChangedEvent& Event)
+{
+	Super::PostEditChangeProperty(Event);
+}
+#endif
+
 //在击中时播放音效，销毁等
 void AProjectileActor::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpilse, const FHitResult& Hit)
 {
