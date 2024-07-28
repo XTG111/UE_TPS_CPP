@@ -32,8 +32,6 @@
 #include "PlayerStart/XTeamPlayerStart.h"
 #include "MultiplayerSessionSubsystem.h"
 
-
-
 // Sets default values
 AXCharacter::AXCharacter()
 {
@@ -192,6 +190,7 @@ void AXCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 	DOREPLIFETIME(AXCharacter, bUnderJump);
 	DOREPLIFETIME(AXCharacter, TurningInPlace);
 	DOREPLIFETIME(AXCharacter, bDisableGamePlay);
+	DOREPLIFETIME(AXCharacter, PlayerName);
 }
 
 //初始化组件中的值
@@ -267,12 +266,8 @@ void AXCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//给OverHeadWidget声明
-	UOverHeadWidget* CharacterHeadWidget = Cast<UOverHeadWidget>(OverHeadWidget->GetUserWidgetObject());
-	//CharacterHeadWidget->ShowPlayerNetRole(this);
-	UMultiplayerSessionSubsystem* GameInstance_GetName = Cast<UMultiplayerSessionSubsystem>(GetGameInstance());
-	CharacterHeadWidget->SetDisplayeText(GameInstance_GetName->GetSteamName());
-
+	//设置名字
+	SetPlayerName();
 	//
 	UpdateHUDHealth();
 	UpdateHUDShield();
@@ -1106,7 +1101,7 @@ void AXCharacter::ElimTimerFinished()
 	{
 		OnLeftGame.Broadcast();
 	}
-	GetWorldTimerManager().ClearTimer(ElimTimer);
+	//GetWorldTimerManager().ClearTimer(ElimTimer);
 }
 
 //ElimBot的销毁由服务器传给客户端
@@ -1160,6 +1155,54 @@ bool AXCharacter::IsLocallyReloading()
 {
 	if (CombatComp == nullptr) return false;
 	return CombatComp->bLocallyReloading;
+}
+
+void AXCharacter::OnRep_PlayerName()
+{
+	UOverHeadWidget* CharacterHeadWidget = Cast<UOverHeadWidget>(OverHeadWidget->GetUserWidgetObject());
+	if (CharacterHeadWidget)
+	{
+		CharacterHeadWidget->SetDisplayeText(PlayerName);
+	}
+}
+
+void AXCharacter::SetPlayerName()
+{
+	UMultiplayerSessionSubsystem* GameInstance_GetName = GetGameInstance()->GetSubsystem<UMultiplayerSessionSubsystem>();
+	if (GameInstance_GetName)
+	{
+		PlayerName = GameInstance_GetName->GetSteamName();
+	}
+	UOverHeadWidget* CharacterHeadWidget = Cast<UOverHeadWidget>(OverHeadWidget->GetUserWidgetObject());
+	CharacterHeadWidget->SetDisplayeText(PlayerName);
+	if (IsLocallyControlled())
+	{
+		ServerSetLocalName(PlayerName, this);
+	}
+}
+
+void AXCharacter::ServerSetLocalName_Implementation(const FString& name, AXCharacter* nowactor)
+{
+	if (HasAuthority())
+	{
+		TArray<FString> ActorNames;
+		TArray<AActor*> ActorList;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AXCharacter::StaticClass(), ActorList);
+		for (auto& it : ActorList)
+		{
+			ActorNames.Add(Cast<AXCharacter>(it)->PlayerName);
+		}
+		MultiSetPlayerName(ActorNames, ActorList);
+	}
+}
+
+void AXCharacter::MultiSetPlayerName_Implementation(const TArray<FString>& actornames, const TArray<AActor*>& actorlist)
+{
+	for (int i = 0; i < actorlist.Num(); i++)
+	{
+		UOverHeadWidget* CharacterHeadWidget = Cast<UOverHeadWidget>(Cast<AXCharacter>(actorlist[i])->OverHeadWidget->GetUserWidgetObject());
+		CharacterHeadWidget->SetDisplayeText(actornames[i]);
+	}
 }
 
 ETeam AXCharacter::GetTeam()

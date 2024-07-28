@@ -817,6 +817,25 @@ void AXBlasterPlayerController::ClientElimAnnouncement_Implementation(APlayerSta
 }
 
 
+void AXBlasterPlayerController::ServerReturnToMainMenu_Implementation()
+{
+	FString MainMenu = FString::Printf(TEXT("/Game/Maps/Level01_Map"));
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("ServerMainMenu")));
+	}
+	ClientReturnToMenu();
+	//GetWorld()->ServerTravel(FString(TEXT("/Game/Maps/Level01_Map?listen")));
+}
+
+void AXBlasterPlayerController::ClientReturnToMenu_Implementation()
+{
+	FString MainMenuPath = FString::Printf(TEXT("/Game/Maps/Level01_Map"));
+	ClientTravel(FString(TEXT("/Game/Maps/Level01_Map")), ETravelType::TRAVEL_Absolute);
+	FName MainMenu = FName(TEXT("Level01_Map"));
+	//UGameplayStatics::OpenLevel(this, TEXT("Level01_Map"));
+}
+
 void AXBlasterPlayerController::BeginChat()
 {
 	ChatComponent->ToggleChatWindow();

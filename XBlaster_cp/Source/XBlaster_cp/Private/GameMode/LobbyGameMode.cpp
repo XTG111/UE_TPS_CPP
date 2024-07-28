@@ -5,10 +5,12 @@
 #include "GameFramework/GameStateBase.h"
 #include "MultiplayerSessionSubsystem.h"
 #include "MatchType.h"
+#include "Character/XCharacter.h"
 
 void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
+
 	if (GetGameState<AGameModeBase>())
 	{
 		AGameModeBase* SelfGameState = GetGameState<AGameModeBase>();
@@ -19,6 +21,12 @@ void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
 		{
 			UMultiplayerSessionSubsystem* Subsystem = GameInstance->GetSubsystem<UMultiplayerSessionSubsystem>();
 			check(Subsystem);
+			AXCharacter* XCharacter = Cast<AXCharacter>(NewPlayer->GetPawn());
+			/*if (XCharacter)
+			{
+				FString PlayerName = Subsystem->GetSteamName();
+				XCharacter->SetOverHeadName(PlayerName);
+			}*/
 			//当连接人数达到我们自定义的人数进行跳转
 			if (NumOfPlayer == Subsystem->GetDesiredNumPublicConnections())
 			{
@@ -34,11 +42,11 @@ void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
 					}
 					else if (MatchType == "Teams")
 					{
-						World->ServerTravel(FString("/Game/Map/XBlaster_Map?listen"));
+						World->ServerTravel(FString("/Game/Maps/TeamsMap?listen"));
 					}
 					else if (MatchType == "CTF")
 					{
-						World->ServerTravel(FString("/Game/Map/XBlaster_Map?listen"));
+						World->ServerTravel(FString("/Game/Maps/CTFMap?listen"));
 					}
 				}
 			}

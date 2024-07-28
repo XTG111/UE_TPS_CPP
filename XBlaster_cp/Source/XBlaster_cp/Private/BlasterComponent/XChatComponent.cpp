@@ -30,12 +30,6 @@ void UXChatComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	SetSendName();
-	//if (bShowJoinMessage)
-	//{
-	//	JoinMessage();
-	//}
-	// ...
-
 }
 
 
@@ -60,7 +54,7 @@ void UXChatComponent::SetSendName()
 
 void UXChatComponent::MultiExcuteCommand_Implementation(const FString& CommandId, ECommandTypes CPT)
 {
-	ServerSetName(CommandId);
+	SetName(CommandId);
 }
 
 void UXChatComponent::ToggleChatWindow()
@@ -145,7 +139,7 @@ void UXChatComponent::ServerEnterText_Implementation(const FText& Message, EMess
 	}
 }
 
-void UXChatComponent::ServerSetName_Implementation(const FString& Name)
+void UXChatComponent::SetName(const FString& Name)
 {
 	//»ñÈ¡SteamÃû×Ö
 	UMultiplayerSessionSubsystem* GameInstance_GetName = Cast<UMultiplayerSessionSubsystem>(GetWorld()->GetGameInstance());
@@ -189,7 +183,7 @@ void UXChatComponent::SendMessage(const FText& Message, EMessageTypes MessageTyp
 			);
 			if (TextWidget)
 			{
-				TextWidget->PlayerName = FText::FromString(SendName);
+				TextWidget->PlayerName = FText::FromString(PlayerName);
 				TextWidget->InText = Message;
 				TextWidget->MessType = MessageType;
 				TextWidget->ChatType = EChatTypes::ECT_All;

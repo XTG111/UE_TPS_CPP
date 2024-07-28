@@ -2,6 +2,7 @@
 
 
 #include "GameMode/XBlasterGameMode.h"
+#include "MultiplayerSessionSubsystem.h"
 #include "Character/XCharacter.h"
 #include "PlayerController/XBlasterPlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -34,7 +35,7 @@ void AXBlasterGameMode::OnMatchStateSet()
 		AXBlasterPlayerController* XBlasterPlayerController = Cast<AXBlasterPlayerController>(*It);
 		if (XBlasterPlayerController)
 		{
-			XBlasterPlayerController->OnMatchStateSet(MatchState,bTeamsMatch);
+			XBlasterPlayerController->OnMatchStateSet(MatchState, bTeamsMatch);
 		}
 	}
 }
@@ -79,7 +80,7 @@ void AXBlasterGameMode::PlayerEliminated(AXCharacter* ElimmedCharacter, AXBlaste
 	//当玩家被击败，获取击杀玩家的控制器利用控制器获取PlayerState
 	AXBlasterPlayerState* AttackPlayerState = AttackerController ? Cast<AXBlasterPlayerState>(AttackerController->PlayerState) : nullptr;
 	AXBlasterPlayerState* VictimPlayerState = VictimController ? Cast<AXBlasterPlayerState>(VictimController->PlayerState) : nullptr;
-	
+
 	//GameState
 	AXBlasterGameState* XBlasterGameState = GetGameState < AXBlasterGameState >();
 

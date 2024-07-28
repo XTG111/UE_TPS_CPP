@@ -67,6 +67,11 @@ public:
 	void SetHUDRedTeamScores(int32 RedTeamScore);
 	void SetHUDBlueTeamScores(int32 BlueTeamScore);
 
+	UFUNCTION(Server, Reliable)
+		void ServerReturnToMainMenu();
+	UFUNCTION(Client, Reliable)
+		void ClientReturnToMenu();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
@@ -218,7 +223,6 @@ private:
 
 	//用来确定是否打开了这个UI
 	bool bReturnToMainMenuOpen = false;
-
 
 	//Chat System
 public:

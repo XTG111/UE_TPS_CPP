@@ -13,7 +13,7 @@ namespace MatchState
 }
 
 /**
- * 
+ *
  */
 UCLASS()
 class XBLASTER_CP_API AXBlasterGameMode : public AGameMode
@@ -33,7 +33,7 @@ public:
 	//角色退出游戏
 	void PlayerLeftGame(class AXBlasterPlayerState* LeavingPlayerState);
 	//计算伤害 友伤
-	virtual float CalculateDamage(AController* Attacker,AController* Vicitim, float BaseDamage);
+	virtual float CalculateDamage(AController* Attacker, AController* Vicitim, float BaseDamage);
 
 public:
 	//设置从DelayedStart中需要等待的时间，然后调用StartMatch()

@@ -53,8 +53,7 @@ public:
 	FLinearColor SetMessageTypeColor(enum EMessageTypes& MessageType);
 
 	//设置玩家名字
-	UFUNCTION(Server, UnReliable)
-		void ServerSetName(const FString& Name);
+	void SetName(const FString& Name);
 
 
 	//Server 发送信息

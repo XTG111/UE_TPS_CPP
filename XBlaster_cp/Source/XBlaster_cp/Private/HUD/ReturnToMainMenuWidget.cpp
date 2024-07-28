@@ -6,6 +6,7 @@
 #include "MutiplayerSessions/Public/MultiplayerSessionSubsystem.h"
 #include "GameFrameWork/GameModeBase.h"
 #include "Character/XCharacter.h"
+#include "PlayerController/XBlasterPlayerController.h"
 
 void UReturnToMainMenuWidget::MenuSet()
 {
@@ -47,13 +48,11 @@ void UReturnToMainMenuWidget::MenuSet()
 
 bool UReturnToMainMenuWidget::Initialize()
 {
-	
+
 	if (!Super::Initialize())
 	{
 		return false;
 	}
-
-
 	return true;
 }
 
@@ -63,28 +62,6 @@ void UReturnToMainMenuWidget::OnDestroySession(bool bWasSuccessful)
 	{
 		Return2MainMenuButton->SetIsEnabled(true);
 		return;
-	}
-
-	//处理销毁会话需要做的事情
-	UWorld* World = GetWorld();
-	if (World)
-	{
-		//获取当前的GameMode 只有服务器上才有，所以可以用来判断是否是服务器
-		AGameModeBase* GameMode =  World->GetAuthGameMode<AGameModeBase>();
-		if (GameMode)
-		{
-			GameMode->ReturnToMainMenuHost();
-		}
-		else
-		{
-			//在客户端上通过PlayerController来控制返回
-			PlayerController = PlayerController == nullptr ? World->GetFirstPlayerController() : PlayerController;
-			if (PlayerController)
-			{
-				PlayerController->ClientReturnToMainMenuWithTextReason(FText());
-			}
-		}
-
 	}
 }
 
@@ -135,11 +112,31 @@ void UReturnToMainMenuWidget::Return2MainMenuButtonClicked()
 				XCharacter->ServerLeaveGame();
 				//绑定OnLeftGame委托
 				XCharacter->OnLeftGame.AddDynamic(this, &UReturnToMainMenuWidget::OnPlayerLeftGame);
+				//SetVisibility(ESlateVisibility::Hidden);
 			}
 			else
 			{
 				Return2MainMenuButton->SetIsEnabled(true);
 			}
+		}
+
+		AGameModeBase* GameMode = World->GetAuthGameMode<AGameModeBase>();
+		if (GameMode)
+		{
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Server Leave")));
+			}
+			World->ServerTravel(FString(TEXT("/Game/Maps/Level01_Map?listen")));
+		}
+		else
+		{
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Client Leave")));
+				//PlayerController->ClientTravel(FString(TEXT("/Game/Maps/Level01_Map")), ETravelType::TRAVEL_Absolute);
+			}
+			Cast<AXBlasterPlayerController>(PlayerController)->ServerReturnToMainMenu();
 		}
 	}
 }
@@ -152,6 +149,10 @@ void UReturnToMainMenuWidget::OnPlayerLeftGame()
 	//销毁连接上的会话
 	if (MultiplayerSessionSubsystem)
 	{
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Yellow, FString(TEXT("Client Leave")));
+		}
 		//调用子系统中的销毁会话函数进行断开连接
 		MultiplayerSessionSubsystem->DestroySession();
 	}

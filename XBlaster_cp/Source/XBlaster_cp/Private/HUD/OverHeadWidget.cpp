@@ -3,6 +3,7 @@
 
 #include "HUD/OverHeadWidget.h"
 #include "Components/TextBlock.h"
+#include "MultiplayerSessionSubsystem.h"
 
 void UOverHeadWidget::OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld)
 {
@@ -26,6 +27,13 @@ void UOverHeadWidget::ShowPlayerNetRole(APawn* InPawn)
 	//获取当前玩家名字
 	if (InPawn) {
 		ActorName = InPawn->GetName();
+		UMultiplayerSessionSubsystem* GameInstance_GetName = InPawn->GetGameInstance()->GetSubsystem<UMultiplayerSessionSubsystem>();
+		if (GameInstance_GetName)
+		{
+			ActorName = GameInstance_GetName->GetSteamName();
+			//ActorName = FString(TEXT("Player"));
+		}
+		//if (InPawn->GetGameInstance()) ActorName = FString(TEXT("NiHao"));
 	}
 	SetDisplayeText(ActorName);
 	////获取当前玩家所有权

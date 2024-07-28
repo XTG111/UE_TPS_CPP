@@ -9,7 +9,7 @@
 
 void UMenuWidget::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch, FString LobbyPath)
 {
-	PathToLobby = FString::Printf(TEXT("%s?listen"),*LobbyPath);
+	PathToLobby = FString::Printf(TEXT("%s?listen"), *LobbyPath);
 	//使得参数接受形参值
 	NumPublicConnections = NumberOfPublicConnections;
 	MatchType = TypeOfMatch;
@@ -56,7 +56,7 @@ void UMenuWidget::MenuSetup(int32 NumberOfPublicConnections, FString TypeOfMatch
 		MultiplayerSessionSubsystem->MultiPlayerOnStartSessionComplete.AddDynamic(this, &UMenuWidget::OnStartSession);
 
 		//静态委托绑定回调函数
-		MultiplayerSessionSubsystem->MultiPlayerOnFindSessionComplete.AddUObject(this,&UMenuWidget::OnFindSession);
+		MultiplayerSessionSubsystem->MultiPlayerOnFindSessionComplete.AddUObject(this, &UMenuWidget::OnFindSession);
 		MultiplayerSessionSubsystem->MultiPlayerOnJoinSessionComplete.AddUObject(this, &UMenuWidget::OnJoinSession);
 
 	}
@@ -113,7 +113,7 @@ void UMenuWidget::OnCreateSession(bool bWasSuccessful)
 		}
 		Button_Host->SetIsEnabled(true);
 	}
-	
+
 }
 
 void UMenuWidget::OnDestroySession(bool bWasSuccessful)
@@ -136,7 +136,7 @@ void UMenuWidget::OnFindSession(const TArray<FOnlineSessionSearchResult>& Sessio
 		return;
 	}
 
-	for (auto Result : SessionResults)
+	for (auto& Result : SessionResults)
 	{
 		FString SettingsValue;
 		Result.Session.SessionSettings.Get(FName("MatchType"), SettingsValue);
@@ -214,7 +214,7 @@ void UMenuWidget::Button_HostClicked()
 	{
 		MultiplayerSessionSubsystem->CreateSession(NumPublicConnections, MatchType);
 	}
-	
+
 }
 
 void UMenuWidget::Button_JoinClicked()

@@ -129,14 +129,14 @@ protected:
 		ETuringInPlace TurningInPlace;
 
 	//用于设置转动时根骨骼的转动 利用此值进行插值求得转动时的AO_Yaw
-		float InterpAOYaw;
+	float InterpAOYaw;
 	////获取Yaw的角度变换，来修改状态
 	UFUNCTION()
 		void TurnInPlace(float DeltaTime);
 
 	//攻击
-		void Fireing();
-		void ReFired();
+	void Fireing();
+	void ReFired();
 
 	//蒙太奇动画
 	UPROPERTY(EditAnywhere, Category = Combat)
@@ -159,16 +159,18 @@ protected:
 
 	void OnPlayerStateInitialized();
 
+public:
+	//角色显示文字空间
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Widget, meta = (AllowPrivateAccess = "true"))
+		class UWidgetComponent* OverHeadWidget;
 private:
-	UPROPERTY(VisibleAnywhere, Category= Camera)
+	UPROPERTY(VisibleAnywhere, Category = Camera)
 		class USpringArmComponent* SpringArmComp;
 
 	UPROPERTY(VisibleAnywhere, Category = Camera)
 		class UCameraComponent* CameraComp;
 
-	//角色显示文字空间
-	UPROPERTY(EditAnywhere,BlueprintReadOnly, Category = Widget,meta=(AllowPrivateAccess = "true"))
-	class UWidgetComponent* OverHeadWidget;
+
 
 	//向客户端传递重叠的武器，以显示UI界面
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
@@ -178,7 +180,7 @@ private:
 		void OnRep_OverlappingWeapon(AWeaponParent* LastWeapon);
 
 	//战斗组件设置
-	UPROPERTY(VisibleAnywhere,Category = Combat,BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, Category = Combat, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		class UCombatComponent* CombatComp;
 
 	//人物属性组件
@@ -190,7 +192,7 @@ private:
 		class ULagCompensationComponent* LagCompensationComp;
 
 	//RPC客户端调用，服务器执行，约定在函数名前加上Server
-	UFUNCTION(Server,Reliable)
+	UFUNCTION(Server, Reliable)
 		void ServerEquipWeapon();
 	UFUNCTION(Server, Reliable)
 		void ServerSwapWeapon();
@@ -198,7 +200,7 @@ private:
 	//隐藏角色
 	void HideCameraIfCharacterClose();
 	UPROPERTY(EditAnywhere)
-	float CameraThreshold = 100.0f;
+		float CameraThreshold = 100.0f;
 
 	//是否能够旋转根骨骼，网络传播根骨骼不是每一个tick都更新
 	bool bRotateRootBone;
@@ -237,9 +239,9 @@ private:
 	//静态材质用于在蓝图中设置，是角色本身的材质实例 set on the BP,use for set the dynamic Material
 	UPROPERTY(VisibleAnywhere, Category = Elim)
 		UMaterialInstance* DissolveMaterialInstance;
-//时间轴
-// 
-// 
+	//时间轴
+	// 
+	// 
 	UPROPERTY(VisibleAnywhere)
 		UTimelineComponent* DissolveTimeline;
 	//相当于蓝图中的Track
@@ -306,9 +308,21 @@ private:
 	*/
 	bool bLeftGame = false;
 
-public:	
+public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = MoveFunc)
 		bool bUnderJump = false;
+	UPROPERTY(ReplicatedUsing = OnRep_PlayerName)
+		FString PlayerName = FString(TEXT("Player"));
+	UFUNCTION()
+		void OnRep_PlayerName();
+	void SetPlayerName();
+
+	UFUNCTION(Server, Reliable)
+		void ServerSetLocalName(const FString& name, AXCharacter* nowactor);
+	UFUNCTION(NetMulticast, Reliable)
+		void MultiSetPlayerName(const TArray<FString>& actornames, const TArray<AActor*>& actorlist);
+
+
 
 	//将重叠的变量获取到，然后传给客户端
 	UFUNCTION()
@@ -339,7 +353,7 @@ public:
 
 	//获取相机，传递给战斗组件，用于调整视角
 	UFUNCTION()
-	UCameraComponent* GetFollowCamera() const;
+		UCameraComponent* GetFollowCamera() const;
 
 	//设置是否能够传递根骨骼
 	FORCEINLINE bool ShouldRotateRootBone() const { return bRotateRootBone; }
@@ -373,7 +387,7 @@ public:
 
 	//显示领先者的皇冠到所有客户端
 	//使用两个MultiRPC是为了避免网络带宽，否则我们需要传入参数来控制是否显示
-	UFUNCTION(NetMulticast,Reliable)
+	UFUNCTION(NetMulticast, Reliable)
 		void MulticastGainerTheLead();
 	UFUNCTION(NetMulticast, Reliable)
 		void MulticastLostTheLead();

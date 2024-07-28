@@ -130,6 +130,7 @@ void UMultiplayerSessionSubsystem::DestroySession()
 		SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(DestroySessionCompleteDelegateHandle);
 		MultiPlayerOnDestroySessionComplete.Broadcast(false);
 	}
+	MultiPlayerOnDestroySessionComplete.Broadcast(true);
 }
 
 void UMultiplayerSessionSubsystem::StartSession()
@@ -198,7 +199,6 @@ void UMultiplayerSessionSubsystem::OnDestroySessionComplete(FName SessionName, b
 		CreateSession(LastNumPublicConnections, LastMatchType);
 	}
 	MultiPlayerOnDestroySessionComplete.Broadcast(bWasSuccessful);
-
 }
 
 void UMultiplayerSessionSubsystem::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)
